@@ -8,9 +8,10 @@ class Session(object):
     Represents one task session.
     """
     
-    datadir = "/home/chingf/engram/data/musall/"
-    #datadir = "/home/chingf/Code/LVM-Widefield/Data/10-Oct-2017/"
-    analysisdir = "/home/chingf/engram/analysis/behavenet/musall/"
+    #datadir = "/home/chingf/engram/data/musall/"
+    #analysisdir = "/home/chingf/engram/analysis/behavenet/musall/"
+    datadir = "/home/chingf/Code/Widefield/data/musall-data/"
+    analysisdir = "/home/chingf/Code/Widefield/data/musall-analysis/"
     dirpath = None
     task = None
     mouse = None
@@ -52,14 +53,17 @@ class Session(object):
         one time step to the next.
 
         Returns
-            A trials-length array, where each element of the array is a
+            A tuple. The first value is a (trials, 2) numpy array indicating the
+            start/end indices for the quiescent activity segment. The second
+            value is a trials-length array, where each element of the array is a
             (bins x components) numpy array.
         """
 
+        quiescent_indices = []
         quiescent_activity = []
         neural_activity = self.neural['neural']
         for trial in range(self.num_trials):
-            start_delay, end_delay = self.get_delay_period(trial)
+            start_delay, end_delay = self._get_delay_period_trial(trial)
             states = self._label_nonmovement(trial, start_delay, end_delay)
             
             # Find the longest consecutive non-movement chunk
@@ -90,33 +94,49 @@ class Session(object):
                 current_idx += 1
             nonmovement_start = start_delay + longest_segment_idxs[0]
             nonmovement_end = start_delay + longest_segment_idxs[1]
+            quiescent_indices.append([nonmovement_start, nonmovement_end])
             quiescent_activity.append(
                 neural_activity[trial, nonmovement_start:nonmovement_end, :]
                 )
-        return quiescent_activity
+        quiescent_indices = np.array(quiescent_indices)
+        return quiescent_indices, quiescent_activity
 
-    def get_delay_period(self, trial_num, include_stim=False):
+    def get_delay_period(self, include_stim=False):
         """
-        Extracts the trial indices corresponding to the delay period. If we
-        choose to ignore stimulus presentation times, then this captures the
-        period between the second stimulus and 'spouts in' and the period
-        between the first and second stimulus is ignored.
+        Extracts the indices corresponding to the delay period over all trials.
+        See _get_delay_period_trial for more details on arguments and return.
 
         Args
-            trial_num: integer; the trial to process.
             include_stim: boolean; whether or not to include stimulus
                 presentation time periods
         Returns
-            A tuple corresponding to the time bin boundaries of the delay period.
-            The first value is inclusive, the second value is exclusive.
+            A (trials, 2) numpy array. Each entry is the time bin boundaries of
+            the delay period (first value inclusive, second value exclusive). 
         """
 
-        
-        delay_start = self.trialmarkers['stimTime'][trial_num]
-        if not include_stim:
-            delay_start += 51
-        delay_end = self.trialmarkers['spoutTime'][trial_num]
-        return (delay_start, delay_end)
+        delay_periods = []
+        for trial in range(self.num_trials):
+            delay_start, delay_end = self._get_delay_period_trial(
+                trial, include_stim
+                )
+            delay_periods.append([delay_start, delay_end])
+        return np.array(delay_periods)
+
+    def get_lever_grab_activity(self):
+        """
+        Extracts the activity centered around the lever grab initializing the
+        trial. This will always be at frame 54. Activity will be extracted from
+        half a second before the lever grab (15 frames) to a second after the
+        lever grab (30 frames)
+
+        Returns
+            A (trials, 15+30, components) numpy array.
+        """
+
+        levergrab_frame = 54
+        start_frame = levergrab_frame - 0 
+        end_frame = levergrab_frame + 30
+        return self.neural['neural'][:,start_frame:end_frame,:]
 
     def get_change_in_latents(self, trial, start_bin):
         """
@@ -127,8 +147,8 @@ class Session(object):
             A (behavelatent_dim,) numpy array
         """
 
-        start_behavelatent = self.behave_latents[trial, start_bin, :]
-        next_behavelatent = self.behave_latents[trial, start_bin + 1, :]
+        start_behavelatent = self.behavenet_latents[trial, start_bin, :]
+        next_behavelatent = self.behavenet_latents[trial, start_bin + 1, :]
         return next_behavelatent - start_behavelatent
 
     def _load_neural(self):
@@ -203,3 +223,25 @@ class Session(object):
             else:
                 nonmovement_labels.append(False)
         return np.array(nonmovement_labels)
+
+    def _get_delay_period_trial(self, trial_num, include_stim=False):
+        """
+        Extracts the indices corresponding to the delay period in a given trial.
+        If we stimulus presentation time isn't included, then this captures the
+        period between the second stimulus and 'spouts in'; the period
+        between the first and second stimulus is ignored.
+
+        Args
+            trial_num: integer; the trial to process.
+            include_stim: boolean; whether or not to include stimulus
+                presentation time periods
+        Returns
+            A tuple corresponding to the time bin boundaries of the delay period.
+            The first value is inclusive, the second value is exclusive.
+        """
+        
+        delay_start = self.trialmarkers['stimTime'][trial_num]
+        if not include_stim:
+            delay_start += 51
+        delay_end = self.trialmarkers['spoutTime'][trial_num]
+        return (delay_start, delay_end)
