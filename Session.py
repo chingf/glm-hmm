@@ -10,8 +10,8 @@ class Session(object):
     
     #datadir = "/home/chingf/engram/data/musall/"
     #analysisdir = "/home/chingf/engram/analysis/behavenet/musall/"
-    datadir = "/home/chingf/Code/Widefield/data/musall-data/"
-    analysisdir = "/home/chingf/Code/Widefield/data/musall-analysis/"
+    datadir = "/home/chingf/Code/Widefield/data/musall/"
+    analysisdir = "/home/chingf/Code/Widefield/analysis/musall/"
     dirpath = None
     task = None
     mouse = None
@@ -180,7 +180,7 @@ class Session(object):
 
         sessionpath = self.analysisdir +\
             self.task + "/" + self.mouse + "/" + self.date + "/"
-        latentpath = "ae/conv/16_latents/test_tube_data/test_pt/version_0/"
+        latentpath = "ae/conv/16_latents/test_pt/version_0/"
         pklpath = sessionpath + latentpath + "latents.pkl"
         with open(pklpath, "rb") as pkl:
             latentdata = pickle.load(pkl)
