@@ -8,8 +8,6 @@ class Session(object):
     Represents one task session.
     """
     
-    #datadir = "/home/chingf/engram/data/musall/"
-    #analysisdir = "/home/chingf/engram/analysis/behavenet/musall/"
     datadir = "/home/chingf/Code/Widefield/data/musall/"
     analysisdir = "/home/chingf/Code/Widefield/analysis/musall/"
     dirpath = None
@@ -23,7 +21,10 @@ class Session(object):
     trialmarkers = {}
     behavenet_latents = None
     
-    def __init__(self, task, mouse, date):
+    def __init__(
+            self, task, mouse, date,
+            load_behavenet=True, access_engram=False
+            ):
         """
         Args
             task: String; "vistrained" or "audiotrained"
@@ -36,12 +37,16 @@ class Session(object):
         self.task = task
         self.mouse = mouse
         self.date = date
+        if access_engram:
+            self.datadir = "/home/chingf/engram/data/musall/"
+            self.analysisdir = "/home/chingf/engram/analysis/behavenet/musall/"
         self.dirpath = self.datadir + task + "/" + mouse + "/" + date + "/"
         if not os.path.isdir(self.dirpath):
-            raise ValueError("Invalid path.")
+            raise ValueError("Invalid path: " + self.dirpath)
         self._load_neural()
         self._load_trialmarkers()
-        self._load_behavioral_latents()
+        if load_behavenet:
+            self._load_behavioral_latents()
         
     def get_quiescent_activity(self):
         """
