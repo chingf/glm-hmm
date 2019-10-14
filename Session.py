@@ -1,6 +1,8 @@
 import os
 import pickle
+import csv
 import numpy as np
+from copy import deepcopy
 from scipy.io import loadmat
 
 class Session(object):
@@ -20,10 +22,14 @@ class Session(object):
     neural = {}
     trialmarkers = {}
     behavenet_latents = None
+    reconstruction_model = None
+    reconstruction_model_table = None
+    reconstructions = None
+    reconstructions_trials = None
     
     def __init__(
             self, task, mouse, date,
-            load_behavenet=True, access_engram=False
+            load_behavenet=True, load_reconstructions=False, access_engram=False
             ):
         """
         Args
@@ -47,6 +53,8 @@ class Session(object):
         self._load_trialmarkers()
         if load_behavenet:
             self._load_behavioral_latents()
+        if load_reconstructions:
+            self._load_reconstructions()
         
     def get_quiescent_activity(self):
         """
@@ -128,8 +136,7 @@ class Session(object):
         return np.array(delay_periods)
 
     def get_lever_grab_activity(self):
-        """
-        Extracts the activity centered around the lever grab initializing the
+        """ Extracts the activity centered around the lever grab initializing the
         trial. This will always be at frame 54. Activity will be extracted from
         half a second before the lever grab (15 frames) to a second after the
         lever grab (30 frames)
@@ -192,6 +199,91 @@ class Session(object):
         behavenet_latents = np.array(latentdata['latents'])
         self.behavenet_latents = behavenet_latents
 
+    def _load_reconstructions(self):
+        """
+        Loads the best BehaveNet reconstruction.
+        """
+
+        def generate_models_lookuptable():
+            """
+            Helper function to make a models lookuptable for reconstructions.
+            """
+            
+            l2_dict = {}
+            nl_dict = {'8': deepcopy(l2_dict), '16': deepcopy(l2_dict)}
+            lr_dict = {
+                '0.0001': deepcopy(nl_dict), '0.001': deepcopy(nl_dict),
+                '0.01': deepcopy(nl_dict)
+                }
+            hl_dict = {
+                '0': deepcopy(lr_dict), '1': deepcopy(lr_dict),
+                '2': deepcopy(lr_dict), '3': deepcopy(lr_dict)
+                }
+            return hl_dict
+
+        ffdatadir = "/home/chingf/Code/Widefield/analysis/musall/vistrained/"\
+            + self.mouse + "/" + self.date + "/ae-neural/16_latents/ff/all/test/"
+        models = []
+        models_lookuptable = generate_models_lookuptable()
+        min_test_loss = 1
+        best_model = None
+        for version in os.listdir(ffdatadir):
+            versiondir = ffdatadir + version + '/'
+            metatag_file = 'meta_tags.pkl'
+            metrics_file = 'metrics.csv'
+            val_loss = []
+            epoch = []
+            test_loss = []
+            
+            with open(versiondir + metatag_file, 'rb') as f:
+                metatag = pickle.load(f) # Give hyperparameters in a dictionary
+            with open(versiondir + metrics_file) as f:
+                csvreader = csv.DictReader(f)
+                for row in csvreader:
+                    if row['val_loss'] != '':
+                        val_loss.append(float(row['val_loss']))
+                        epoch.append(int(row['epoch']))
+                    if row['test_loss'] != '':
+                        test_loss.append(float(row['test_loss']))
+                        
+            # Save model to look at later
+            model = {}
+            n_hid_layers = str(metatag['n_hid_layers'])
+            learning_rate = str(metatag['learning_rate'])
+            n_lags = str(metatag['n_lags'])
+            l2_reg = str(metatag['l2_reg'])
+            model['n_hid_layers'] = n_hid_layers
+            model['learning_rate'] = learning_rate
+            model['n_lags'] = n_lags
+            model['l2_reg'] = l2_reg
+            model['epoch'] = epoch
+            model['val_loss'] = np.array(val_loss)
+            model['test_loss'] = np.array(test_loss)
+            model['version'] = version
+            models.append(model)
+            models_lookuptable[n_hid_layers][learning_rate][n_lags][l2_reg] = model
+            
+            # See if this is a better model than the last found
+            mean_test_loss = np.mean(test_loss)
+            if mean_test_loss < min_test_loss:
+                min_test_loss = mean_test_loss
+                best_model = model
+
+        # Save the results of looking over all the NN models 
+        self.reconstruction_model_table = models_lookuptable
+        self.reconstruction_model = best_model
+
+        # Load the reconstruction neural activity of the best model
+        bn_version = best_model['version']
+        predictions_file = ffdatadir + bn_version + "/" + "predictions.pkl"
+        with open(predictions_file, "rb") as f:
+            predictions_data = pickle.load(f)
+        predictions = np.nan_to_num(
+            predictions_data['predictions']
+            )
+        self.reconstructions = self._undo_zscore(self.neural['neural'], predictions)
+        self.reconstructions_trials = predictions_data['trials']
+
     def _label_nonmovement(self, trial, start_delay, end_delay):
         """
         For the given trial and delay period indices, the function will label
@@ -250,3 +342,19 @@ class Session(object):
             delay_start += 51
         delay_end = self.trialmarkers['spoutTime'][trial_num]
         return (delay_start, delay_end)
+
+    def _undo_zscore(self, neural, predictions):
+        """
+        Assumes data is trial x time x components
+        
+        Args:
+            neural: original neural activity
+            predictions: predicted z-scored activity
+        Returns:
+            predictions with the z-scoring undone
+        """
+    
+        predictions = predictions.copy()
+        predictions *= np.std(neural, axis=(0,1))
+        predictions += np.mean(neural, axis=(0,1))
+        return predictions
