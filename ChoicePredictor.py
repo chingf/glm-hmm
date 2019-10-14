@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.io import loadmat
 from Session import *
+from sklearn.ensemble import BaggingClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import GridSearchCV
@@ -222,7 +223,8 @@ class SVCChoice(Predictor):
         scores = []
         models = []
         
-        start_idxs = range(0, 120, 2)
+        start_idxs = np.arange(0, data.shape[1], 2)
+        start_idxs = np.arange(30,120,4)
         for start_idx in start_idxs:
             score, model = self._fit_window(start_idx, window_length, data)
             scores.append(np.mean(score))
@@ -256,9 +258,10 @@ class SVCChoice(Predictor):
         
         for C in [2**i for i in range(-3,3)]:
             for gamma in [2**i for i in range(-5,5)]:
-                for degree in [0,1,2,3]:
-                    svclassifier = SVC(
-                        kernel='poly', degree=degree, C=C, gamma=gamma
+                for degree in [1,2,3]:
+                    svclassifier = BaggingClassifier(
+                        SVC(kernel='poly', degree=degree, C=C, gamma=gamma),
+                        max_samples=1.0/10
                         )
                     svclassifier.fit(X_train, y_train)
                     score = svclassifier.score(X_test, y_test)
