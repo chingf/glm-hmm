@@ -108,6 +108,12 @@ class LRChoice(Predictor):
         scores and fitted models.
         """
 
+        if self.datatype == 'behavenet':
+            raise Exception(
+                "Neural region leave-one-out not applicable to BehaveNet data."
+                )
+            return None
+
         loo_results = {}
         for idx, reg_name in enumerate(self.reg_names):
             components = reg_indxs[idx].squeeze() - 1
@@ -201,6 +207,12 @@ class SVCChoice(Predictor):
         scores and fitted models.
         """
 
+        if self.datatype == 'behavenet':
+            raise Exception(
+                "Neural region leave-one-out not applicable to BehaveNet data."
+                )
+            return None
+
         loo_results = {}
         for idx, reg_name in enumerate(self.reg_names):
             components = reg_indxs[idx].squeeze() - 1
@@ -224,7 +236,6 @@ class SVCChoice(Predictor):
         models = []
         
         start_idxs = np.arange(0, data.shape[1], 2)
-        start_idxs = np.arange(30,120,4)
         for start_idx in start_idxs:
             score, model = self._fit_window(start_idx, window_length, data)
             scores.append(np.mean(score))
@@ -232,6 +243,48 @@ class SVCChoice(Predictor):
         results = {"scores": scores, "models": models}
         return results 
 
+    def _fit_window(self, start_idx, window_length, data):
+        """
+        Fits SVC over the data from the start_idx for a framesize of window_length.
+        """
+
+        X = []
+        y = []
+        # Extracting training and test data
+        for trial in range(self.trial_choices.size):
+            choice = self.trial_choices[trial]
+            if np.isnan(choice):
+                continue
+            activity = data[trial,start_idx:start_idx+window_length,:]
+            X.append(activity.flatten())
+            y.append(int(choice-1))
+        X = np.array(X)
+        y = np.array(y)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size = 0.20
+            )
+        
+        best_score = 0
+        best_model = None
+        
+        for C in [2**i for i in range(-3,3)]:
+            for gamma in [2**i for i in range(-5,5)]:
+                for degree in [1,2,3]:
+                    svclassifier = SVC(
+                        kernel='poly', degree=degree, C=C, gamma=gamma
+                        )
+                    svclassifier.fit(X_train, y_train)
+                    score = svclassifier.score(X_test, y_test)
+                    
+                    if best_score < score:
+                        best_score = score
+                        best_model = svclassifier
+        return best_score, best_model
+
+class BaggingSVCChoice(SVCChoice):
+    """
+    Same as SVCChoice, but with an ensemble bagging method.
+    """
     def _fit_window(self, start_idx, window_length, data):
         """
         Fits SVC over the data from the start_idx for a framesize of window_length.
@@ -270,4 +323,3 @@ class SVCChoice(Predictor):
                         best_score = score
                         best_model = svclassifier
         return best_score, best_model
-
