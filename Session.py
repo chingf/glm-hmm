@@ -56,64 +56,6 @@ class Session(object):
         if load_reconstructions:
             self._load_reconstructions()
         
-    def get_quiescent_activity(self):
-        """
-        Extracts the neural activity during the quiescent period of each trial.
-        For each trial, we will look at the delay period, and extract the
-        largest continuous portion of the delay period where there seems to be
-        a period of inactivity. Inactivity is defined by looking at the
-        behavioral latents and thresholding the total change in latents from
-        one time step to the next.
-
-        Returns
-            A tuple. The first value is a (trials, 2) numpy array indicating the
-            start/end indices for the quiescent activity segment. The second
-            value is a trials-length array, where each element of the array is a
-            (bins x components) numpy array.
-        """
-
-        quiescent_indices = []
-        quiescent_activity = []
-        neural_activity = self.neural['neural']
-        for trial in range(self.num_trials):
-            start_delay, end_delay = self._get_delay_period_trial(trial)
-            states = self._label_nonmovement(trial, start_delay, end_delay)
-            
-            # Find the longest consecutive non-movement chunk
-            longest_segment_idxs = (0,0) # Stores the best sequence so far
-            longest_segment_length = 0
-            current_idx = 0 # Initialize the index to start at
-            start_idx = 0 # The index that the current segment starts at
-            prev_state = False # Initialize the previous state as movement 
-            while current_idx < states.size:
-                current_state = states[current_idx]
-                # If we are at the end of the current segment
-                if current_state == False and prev_state == True:
-                    current_segment_length = current_idx - start_idx
-                    if current_segment_length > longest_segment_length:
-                        longest_segment_idxs = (start_idx, current_idx)
-                        longest_segment_length = current_segment_length
-                # If we have not yet found a nonmovement segment
-                elif current_state == False and prev_state == False:
-                    pass
-                # If we have found the start of a new nonmovement segment
-                elif current_state == True and prev_state == False:
-                    start_idx = current_idx
-                # If we are in the middle of a nonmovement segment
-                else:
-                    pass
-                    
-                prev_state = current_state
-                current_idx += 1
-            nonmovement_start = start_delay + longest_segment_idxs[0]
-            nonmovement_end = start_delay + longest_segment_idxs[1]
-            quiescent_indices.append([nonmovement_start, nonmovement_end])
-            quiescent_activity.append(
-                neural_activity[trial, nonmovement_start:nonmovement_end, :]
-                )
-        quiescent_indices = np.array(quiescent_indices)
-        return quiescent_indices, quiescent_activity
-
     def get_delay_period(self, include_stim=False):
         """
         Extracts the indices corresponding to the delay period over all trials.
@@ -193,6 +135,7 @@ class Session(object):
         sessionpath = self.analysisdir +\
             self.task + "/" + self.mouse + "/" + self.date + "/"
         latentpath = "ae/conv/16_latents/test_pt/version_0/"
+        #latentpath = "ae/conv/64_latents/test/version_1/"
         pklpath = sessionpath + latentpath + "latents.pkl"
         with open(pklpath, "rb") as pkl:
             latentdata = pickle.load(pkl)
@@ -283,43 +226,6 @@ class Session(object):
             )
         self.reconstructions = self._undo_zscore(self.neural['neural'], predictions)
         self.reconstructions_trials = predictions_data['trials']
-
-    def _label_nonmovement(self, trial, start_delay, end_delay):
-        """
-        For the given trial and delay period indices, the function will label
-        each time bins as either movement (False) or non-movement(True).
-
-        Returns
-            A (end_delay - start_delay,) boolean numpy array
-        """
-
-        # First, see if the k=4 BehaveNet labeling is available
-        # If so, we need only use state 1 as a nonmovement label
-        sessionpath = self.analysisdir +\
-            self.task + "/" + self.mouse + "/" + self.date + "/"
-        labeldir = "arhmm/16_latents/04_states/0e+00_kappa/gaussian/" +\
-            "test_tube_data/diff_init_grid_search/version_0/"
-        statepkl = sessionpath + labeldir + "states.pkl"
-        if os.path.isfile(statepkl):
-            with open(statepkl, "rb") as pkl:
-                states = np.array(pickle.load(pkl)['states'])
-            states = states[trial, start_delay:end_delay]
-            nonmovement_labels = (states == 1)
-            return nonmovement_labels
-
-        # If the BehaveNet labeling is unavailable, use some threshold on
-        # the change in behavioral latents at each time step to determine
-        # if movement has occurred.
-        print("Using heuristic for nonmovement labeling")
-        nonmovement_labels = []
-        for i in range(start_delay, end_delay):
-            change_in_latents = self.get_change_in_latents(trial, start_delay)
-            change_in_latents = np.abs(change_in_latents) 
-            if np.sum(change_in_latents) < 0.07:
-                nonmovement_labels.append(True)
-            else:
-                nonmovement_labels.append(False)
-        return np.array(nonmovement_labels)
 
     def _get_delay_period_trial(self, trial_num, include_stim=False):
         """
