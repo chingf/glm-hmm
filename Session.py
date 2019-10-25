@@ -92,19 +92,6 @@ class Session(object):
         end_frame = levergrab_frame + 30
         return self.neural['neural'][:,start_frame:end_frame,:]
 
-    def get_change_in_latents(self, trial, start_bin):
-        """
-        Returns the vector of the change in behavioral latents from timestep
-        START_BIN to the next timestep at trial TRIAL.
-
-        Returns
-            A (behavelatent_dim,) numpy array
-        """
-
-        start_behavelatent = self.behavenet_latents[trial, start_bin, :]
-        next_behavelatent = self.behavenet_latents[trial, start_bin + 1, :]
-        return next_behavelatent - start_behavelatent
-
     def _load_neural(self):
         """
         Loads the `neural.mat` file and saves its data structures.
@@ -134,8 +121,7 @@ class Session(object):
 
         sessionpath = self.analysisdir +\
             self.task + "/" + self.mouse + "/" + self.date + "/"
-        latentpath = "ae/conv/16_latents/test_pt/version_0/"
-        #latentpath = "ae/conv/64_latents/test/version_1/"
+        latentpath = "ae/conv/32_latents/test/version_0/"
         pklpath = sessionpath + latentpath + "latents.pkl"
         with open(pklpath, "rb") as pkl:
             latentdata = pickle.load(pkl)
