@@ -10,23 +10,6 @@ class Session(object):
     Represents one task session.
     """
     
-    datadir = "/home/chingf/Code/Widefield/data/musall/"
-    analysisdir = "/home/chingf/Code/Widefield/analysis/musall/"
-    dirpath = None
-    task = None
-    mouse = None
-    date = None
-    num_trials = 0
-    num_bins = 0
-    num_components = 0
-    neural = {}
-    trialmarkers = {}
-    behavenet_latents = None
-    reconstruction_model = None
-    reconstruction_model_table = None
-    reconstructions = None
-    reconstructions_trials = None
-    
     def __init__(
             self, task, mouse, date,
             load_behavenet=True, load_reconstructions=False, access_engram=False
@@ -40,12 +23,25 @@ class Session(object):
             ValueError: if the inputs do not specify a valid filepath.
         """
         
+        self.num_trials = 0
+        self.num_bins = 0
+        self.num_components = 0
+        self.neural = {}
+        self.trialmarkers = {}
+        self.behavenet_latents = None
+        self.reconstruction_model = None
+        self.reconstruction_model_table = None
+        self.reconstructions = None
+        self.reconstructions_trials = None
         self.task = task
         self.mouse = mouse
         self.date = date
         if access_engram:
             self.datadir = "/home/chingf/engram/data/musall/"
             self.analysisdir = "/home/chingf/engram/analysis/behavenet/musall/"
+        else:
+            datadir = "/home/chingf/Code/Widefield/data/musall/"
+            analysisdir = "/home/chingf/Code/Widefield/analysis/musall/"
         self.dirpath = self.datadir + task + "/" + mouse + "/" + date + "/"
         if not os.path.isdir(self.dirpath):
             raise ValueError("Invalid path: " + self.dirpath)

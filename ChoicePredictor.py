@@ -180,47 +180,6 @@ class LRChoice(Predictor):
         log_reg.fit(X, y)
         return log_reg
 
-class PolyLRChoice(LRChoice):
-    """
-    Logistic regression predictor. Looks one frame into the future. Regularized
-    by L2 norm. Uses polynomial features
-    """
-
-    def _fit_window(self, start_idx, window_length, data):
-        """
-        Fits a L2-regularized logistic regression model, predicting
-        left/right licking choice.
-        
-        Args
-            start_idx: index in delay period to start extracting a window
-                of activity.
-            window_length: size of the window of activity to extract
-        """
-        
-        X = []
-        y = []
-        # Extracting training and test data
-        for trial in range(self.trial_choices.size):
-            choice = self.trial_choices[trial]
-            if np.isnan(choice):
-                continue
-            poly = PolynomialFeatures(2)
-            activity = data[trial,start_idx:start_idx+window_length,:].flatten()
-            activity = poly.fit_transform(activity.reshape((1,-1))).flatten()
-            X.append(activity.flatten())
-            y.append(int(choice-1))
-        X = np.array(X)
-        y = np.array(y)
-        
-        # Training the model with cross validation
-        log_reg = LogisticRegressionCV(
-            Cs=5, cv=5, scoring='accuracy', max_iter=500
-            )
-        scaler = StandardScaler()
-        X = scaler.fit_transform(X)
-        log_reg.fit(X, y)
-        return log_reg
-
 class SVCChoice(Predictor):
     """
     SVM classifier with polynomial kernel. Looks one frame into the future.
@@ -323,45 +282,3 @@ class SVCChoice(Predictor):
                         best_model = svclassifier
         return best_score, best_model
 
-class BaggingSVCChoice(SVCChoice):
-    """
-    Same as SVCChoice, but with an ensemble bagging method.
-    """
-    def _fit_window(self, start_idx, window_length, data):
-        """
-        Fits SVC over the data from the start_idx for a framesize of window_length.
-        """
-
-        X = []
-        y = []
-        # Extracting training and test data
-        for trial in range(self.trial_choices.size):
-            choice = self.trial_choices[trial]
-            if np.isnan(choice):
-                continue
-            activity = data[trial,start_idx:start_idx+window_length,:]
-            X.append(activity.flatten())
-            y.append(int(choice-1))
-        X = np.array(X)
-        y = np.array(y)
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size = 0.20
-            )
-        
-        best_score = 0
-        best_model = None
-        
-        for C in [2**i for i in range(-3,3)]:
-            for gamma in [2**i for i in range(-5,5)]:
-                for degree in [1,2,3]:
-                    svclassifier = BaggingClassifier(
-                        SVC(kernel='poly', degree=degree, C=C, gamma=gamma),
-                        max_samples=1.0/10
-                        )
-                    svclassifier.fit(X_train, y_train)
-                    score = svclassifier.score(X_test, y_test)
-                    
-                    if best_score < score:
-                        best_score = score
-                        best_model = svclassifier
-        return best_score, best_model
