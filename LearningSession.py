@@ -95,25 +95,18 @@ class LearningSession(object):
                 self.is_aud_trial.append(True)
             else:
                 self.is_aud_trial.append(False)
-            if len(self.is_aud_trial) > self.num_trials:
-                import pdb; pdb.set_trace()
 
     def _load_spatialdisc(self):
         """
         Loads the relevant data structures from Spatial Disc.
         """
 
-        pattern = '(\d{2})-(\w{3})-(\d{4})'
-        date_pattern = re.search(pattern, self.date)
-        day = date_pattern.group(1)
-        month = date_pattern.group(2)
-        year = date_pattern.group(3)
-        filename = self.mouse + '_SpatialDisc_' + month + day +\
-            '_' + year + '_Session2.mat'
-        filepath = self.dirpath + filename
+        all_files = os.listdir(self.dirpath)
+        spatialdisc_file = [f for f in all_files if 'SpatialDisc' in f][0]
+        filepath = self.dirpath + spatialdisc_file 
         matfile = loadmat(filepath)
         sessiondata = np.array(matfile['SessionData'])[0,0]
-        self.spatialdisc['Unassisted'] = sessiondata['Assisted']
+        self.spatialdisc['Unassisted'] = sessiondata['Assisted'].squeeze()
 
     def _get_delay_period_trial(self, trial_num):
         """
@@ -128,7 +121,11 @@ class LearningSession(object):
         """
       
         trial_indices = []
-        trial_indices.append(self.trialmarkers['leverIn'][trial_num] - 1)
+        lever_in = self.trialmarkers['leverIn'][trial_num] - 1
+        if lever_in < 0:
+            trial_indices.append(0)
+        else:
+            trial_indices.append(lever_in)
         if self.trialmarkers['CorrectSide'][trial_num] == 1: # Left
             if self.is_aud_trial[trial_num]: # Auditory 
                 stims = self.trialmarkers['audStimL'][trial_num]
@@ -139,11 +136,19 @@ class LearningSession(object):
                 stims = self.trialmarkers['audStimR'][trial_num]
             else: # Tactile
                 stims = self.trialmarkers['tacStimR'][trial_num]
-        try:
+        if stims.size == 0:
+            trial_indices.append(np.nan)
+            trial_indices.append(np.nan)
+        else:
             trial_indices.append(stims[0,0] - 1)
-            trial_indices.append(stims[0,-1] -1)
-        except:
-            import pdb; pdb.set_trace()
+            trial_indices.append(stims[0,-1] - 1)
         trial_indices.append(self.trialmarkers['spoutTime'][trial_num] - 1)
-        trial_indices.append(self.trialmarkers['spoutOutTime'][trial_num] - 1)
+        spout_out_time = self.trialmarkers['spoutOutTime'][trial_num] - 1
+        if np.isnan(spout_out_time) or spout_out_time > self.num_bins:
+            trial_indices.append(trial_indices[-1] + 10)
+        else:
+            trial_indices.append(spout_out_time)
+        tt = np.array(trial_indices)
+        if np.sum(tt < 0):
+            import pdb; pdb.set_trace()
         return trial_indices 

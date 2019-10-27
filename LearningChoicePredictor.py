@@ -155,11 +155,15 @@ class SVCChoice(LearningPredictor):
         models = []
         indices = []
         index_start = 0
-        num_intervals = 4 
+        num_intervals = 4
       
         for trial_index in range(self.trial_indices.shape[1] - 1):
             all_window_activity = [[] for _ in range(num_intervals)]
+            choices = []
             for trial in range(self.session.num_trials):
+                if np.sum(np.isnan(self.trial_indices[trial,:])) > 0:
+                    continue
+                choices.append(self.trial_choices[trial])
                 start_frame = self.trial_indices[trial,trial_index]
                 end_frame = self.trial_indices[trial,trial_index + 1]
                 frames = np.linspace(
@@ -172,7 +176,7 @@ class SVCChoice(LearningPredictor):
 
             for interval, window_activity in enumerate(all_window_activity):
                 window_activity = np.array(window_activity)
-                score, model = self._fit_window(window_activity)
+                score, model = self._fit_window(window_activity, choices)
                 models.append(model)
                 scores.append(np.mean(score))
                 indices.append(
@@ -182,7 +186,7 @@ class SVCChoice(LearningPredictor):
         results = {"scores": scores, "models": models, "indices": indices}
         return results
 
-    def _fit_window(self, window_data):
+    def _fit_window(self, window_data, choices):
         """
         Fits SVC over the data given in window_data 
         """
@@ -214,8 +218,11 @@ class SVCChoice(LearningPredictor):
                     svclassifier = SVC(
                         kernel='poly', degree=degree, C=C, gamma=gamma
                         )
-                    svclassifier.fit(X_train, y_train)
-                    score = svclassifier.score(X_test, y_test)
+                    try:
+                        svclassifier.fit(X_train, y_train)
+                        score = svclassifier.score(X_test, y_test)
+                    except:
+                        import pdb; pdb.set_trace()
                     
                     if best_score < score:
                         best_score = score
