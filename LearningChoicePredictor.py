@@ -148,7 +148,8 @@ class SVCChoice(LearningPredictor):
     def _fit_data(self, data):
         """
         Does a grid search over each index of the trial. Returns a list of
-        logistic regression models.
+        dictionary of trained models, their scores, and the trial indices
+        corresponding to each model.
         """
 
         scores = []
@@ -161,11 +162,12 @@ class SVCChoice(LearningPredictor):
             all_window_activity = [[] for _ in range(num_intervals)]
             choices = []
             for trial in range(self.session.num_trials):
-                if np.sum(np.isnan(self.trial_indices[trial,:])) > 0:
-                    continue
-                choices.append(self.trial_choices[trial])
                 start_frame = self.trial_indices[trial,trial_index]
                 end_frame = self.trial_indices[trial,trial_index + 1]
+                if np.sum(np.isnan(self.trial_indices[trial,:])) > 0:
+                    continue
+                if start_frame > (self.session.num_bins - 2):
+                    continue
                 frames = np.linspace(
                     start_frame, end_frame - 1, num_intervals
                     ).astype(int)
@@ -173,9 +175,13 @@ class SVCChoice(LearningPredictor):
                     all_window_activity[interval].append(
                         data[trial,frame:frame+2,:]
                         )
+                    if data[trial, frame:frame+2,:].size != 400:
+                        import pdb; pdb.set_trace()
+                choices.append(self.trial_choices[trial])
 
             for interval, window_activity in enumerate(all_window_activity):
                 window_activity = np.array(window_activity)
+                choices = np.array(choices)
                 score, model = self._fit_window(window_activity, choices)
                 models.append(model)
                 scores.append(np.mean(score))
@@ -194,7 +200,8 @@ class SVCChoice(LearningPredictor):
         X = []
         y = []
         # Extracting training and test data
-        for trial in range(self.trial_choices.size):
+        assert(len(window_data) == choices.size)
+        for trial in range(choices.size):
             choice = self.trial_choices[trial]
             activity = window_data[trial].flatten()
             if activity.size == 0:
@@ -218,11 +225,8 @@ class SVCChoice(LearningPredictor):
                     svclassifier = SVC(
                         kernel='poly', degree=degree, C=C, gamma=gamma
                         )
-                    try:
-                        svclassifier.fit(X_train, y_train)
-                        score = svclassifier.score(X_test, y_test)
-                    except:
-                        import pdb; pdb.set_trace()
+                    svclassifier.fit(X_train, y_train)
+                    score = svclassifier.score(X_test, y_test)
                     
                     if best_score < score:
                         best_score = score

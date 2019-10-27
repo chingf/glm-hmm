@@ -144,11 +144,11 @@ class LearningSession(object):
             trial_indices.append(stims[0,-1] - 1)
         trial_indices.append(self.trialmarkers['spoutTime'][trial_num] - 1)
         spout_out_time = self.trialmarkers['spoutOutTime'][trial_num] - 1
-        if np.isnan(spout_out_time) or spout_out_time > self.num_bins:
-            trial_indices.append(trial_indices[-1] + 10)
+        if np.isnan(spout_out_time) or spout_out_time > (self.num_bins - 2):
+            trial_indices.append(
+                min(trial_indices[-1] + 10, self.num_bins - 2)
+                )
         else:
             trial_indices.append(spout_out_time)
         tt = np.array(trial_indices)
-        if np.sum(tt < 0):
-            import pdb; pdb.set_trace()
         return trial_indices 
