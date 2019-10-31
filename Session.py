@@ -40,8 +40,8 @@ class Session(object):
             self.datadir = "/home/chingf/engram/data/musall/"
             self.analysisdir = "/home/chingf/engram/analysis/behavenet/musall/"
         else:
-            datadir = "/home/chingf/Code/Widefield/data/musall/"
-            analysisdir = "/home/chingf/Code/Widefield/analysis/musall/"
+            self.datadir = "/home/chingf/Code/Widefield/data/musall/"
+            self.analysisdir = "/home/chingf/Code/Widefield/analysis/musall/"
         self.dirpath = self.datadir + task + "/" + mouse + "/" + date + "/"
         if not os.path.isdir(self.dirpath):
             raise ValueError("Invalid path: " + self.dirpath)

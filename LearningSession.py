@@ -41,9 +41,9 @@ class LearningSession(object):
         self.dirpath = self.datadir + mouse + "/" + date + "/"
         if not os.path.isdir(self.dirpath):
             raise ValueError("Invalid path: " + self.dirpath)
-        self._load_Vc()
+        #self._load_Vc()
         self._load_trialmarkers()
-        self._load_spatialdisc()
+        #self._load_spatialdisc()
         
     def get_trial_indices(self):
         """
@@ -89,7 +89,8 @@ class LearningSession(object):
         matfile = loadmat(filepath)
         for key in [key for key in matfile if not key.startswith("__")]:
             self.trialmarkers[key] = np.array(matfile[key]).squeeze()
-        for trial in range(self.num_trials):
+        num_trials = self.trialmarkers['CorrectSide'].size
+        for trial in range(num_trials):
             if self.trialmarkers['audStimL'][trial].size > 0 or\
                 self.trialmarkers['audStimR'][trial].size > 0:
                 self.is_aud_trial.append(True)

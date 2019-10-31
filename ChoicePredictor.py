@@ -8,6 +8,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.linear_model import LogisticRegressionCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import PolynomialFeatures
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
 
@@ -281,4 +282,96 @@ class SVCChoice(Predictor):
                         best_score = score
                         best_model = svclassifier
         return best_score, best_model
+
+class LDAChoice(Predictor):
+    """
+    LDA classifier. Looks one frame into the future.
+    """
+
+    results = []
+
+    def __init__(self, session, datatype):
+        super(LDAChoice, self).__init__(session, datatype)
+
+    def fit_all(self):
+        """
+        Does a grid search over each index of the trial, using all the loaded
+        data. Returns a dictionary of scores and fitted models.
+        """
+
+        results = self._fit_data(self.data)
+        self.results = results
+        return results
+
+    def fit_loo(self):
+        """
+        Does a grid search over each index of the trial, in a leave-one-out
+        manner over each brain region. Returns a dictionary of
+        the dropped-out brain region and the corresponding dictionary of
+        scores and fitted models.
+        """
+
+        if self.datatype == 'behavenet':
+            raise Exception(
+                "Neural region leave-one-out not applicable to BehaveNet data."
+                )
+            return None
+
+        loo_results = {}
+        for idx, reg_name in enumerate(self.reg_names):
+            components = reg_indxs[idx].squeeze() - 1
+            loo_indices = [
+                i for i in range(self.session.num_components) if i not in components
+                ]
+            loo_data = self.data[:,:,loo_indices]
+            results = self._fit_data(loo_data)
+            loo_results[reg_name] = loo_results
+        self.loo_results = loo_results
+        return loo_results
+
+    def _fit_data(self, data):
+        """
+        Does a grid search over each index of the trial. Returns a list of
+        LDA models.
+        """
+
+        window_length = 2 
+        scores = []
+        models = []
+        
+        start_idxs = np.arange(0, data.shape[1], 2)
+        for start_idx in start_idxs:
+            score, model = self._fit_window(start_idx, window_length, data)
+            scores.append(np.mean(score))
+            models.append(model)
+        results = {"scores": scores, "models": models}
+        return results 
+
+    def _fit_window(self, start_idx, window_length, data):
+        """
+        Fits LDA over the data from the start_idx for a framesize of window_length.
+        """
+
+        X = []
+        y = []
+        # Extracting training and test data
+        for trial in range(self.trial_choices.size):
+            choice = self.trial_choices[trial]
+            activity = data[trial,start_idx:start_idx+window_length,:]
+            if np.isnan(choice) or np.sum(np.isnan(activity)) > 0:
+                continue
+            activity = activity.flatten()
+            X.append(activity)
+            y.append(int(choice-1))
+        X = np.array(X)
+        y = np.array(y)
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size = 0.20
+            )
+        
+        model = LinearDiscriminantAnalysis()
+        model.fit(X_train, y_train)
+        predictions = model.predict(X_test)
+        score = np.sum(predictions == y_test)/(1.0*y_test.size) 
+        return score, model
 
