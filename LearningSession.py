@@ -13,7 +13,7 @@ class LearningSession(object):
     """
     
     def __init__(
-            self, mouse, date, access_engram=False
+            self, mouse, date, access_engram=False, load_Vc=True
             ):
         """
         Args
@@ -41,9 +41,10 @@ class LearningSession(object):
         self.dirpath = self.datadir + mouse + "/" + date + "/"
         if not os.path.isdir(self.dirpath):
             raise ValueError("Invalid path: " + self.dirpath)
-        #self._load_Vc()
+        if load_Vc:
+            self._load_Vc()
         self._load_trialmarkers()
-        #self._load_spatialdisc()
+        self._load_spatialdisc()
         
     def get_trial_indices(self):
         """
@@ -55,7 +56,7 @@ class LearningSession(object):
         Returns
             A (trials, 5) numpy array. For some trial, the 5-length array
             contains the indices for the following events:
-            Value 1: Levers in, inclusive
+            Value 1: Lnum_trialsevers in, inclusive
             Value 2: First stimulus, inclusive
             Value 3: Last stimulus, inclusive
             Value 4: Spouts in, inclusive
@@ -122,27 +123,34 @@ class LearningSession(object):
         """
       
         trial_indices = []
-        lever_in = self.trialmarkers['leverIn'][trial_num] - 1
+
+        # Get Lever In
+        lever_in = self.trialmarkers['stimGrab'][trial_num] - 1
         if lever_in < 0:
             trial_indices.append(0)
         else:
             trial_indices.append(lever_in)
-        if self.trialmarkers['CorrectSide'][trial_num] == 1: # Left
-            if self.is_aud_trial[trial_num]: # Auditory 
-                stims = self.trialmarkers['audStimL'][trial_num]
-            else: # Tactile
-                stims = self.trialmarkers['tacStimL'][trial_num]
-        elif self.trialmarkers['CorrectSide'][trial_num] == 2: # Right
-            if self.is_aud_trial[trial_num]: # Auditory 
-                stims = self.trialmarkers['audStimR'][trial_num]
-            else: # Tactile
-                stims = self.trialmarkers['tacStimR'][trial_num]
-        if stims.size == 0:
+
+        # Get Stim in and Stim out
+        if self.is_aud_trial[trial_num]:
+            l_stims = self.trialmarkers['audStimL'][trial_num].squeeze()
+            r_stims = self.trialmarkers['audStimR'][trial_num].squeeze()
+        else:
+            l_stims = self.trialmarkers['tacStimL'][trial_num].squeeze()
+            r_stims = self.trialmarkers['tacStimR'][trial_num].squeeze()
+        all_stims = []
+        if (l_stims.size > 0) and (l_stims.shape != ()):
+            all_stims.extend([s - 1 for s in l_stims])
+        if (r_stims.size > 0) and (r_stims.shape != ()):
+            all_stims.extend([s - 1 for s in r_stims])
+        if len(all_stims) == 0:
             trial_indices.append(np.nan)
             trial_indices.append(np.nan)
         else:
-            trial_indices.append(stims[0,0] - 1)
-            trial_indices.append(stims[0,-1] - 1)
+            trial_indices.append(min(all_stims))
+            trial_indices.append(max(all_stims))
+
+        # Get Spout In and Spout Out
         trial_indices.append(self.trialmarkers['spoutTime'][trial_num] - 1)
         spout_out_time = self.trialmarkers['spoutOutTime'][trial_num] - 1
         if np.isnan(spout_out_time) or spout_out_time > (self.num_bins - 2):

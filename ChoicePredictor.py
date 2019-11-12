@@ -35,7 +35,7 @@ class Predictor():
     results = {} 
     loo_results = {}
 
-    def __init__(self, session, datatype, truncate=True):
+    def __init__(self, session, datatype, truncate=True, shuffle=False):
         self.session = session
         self.reg_indices = session.neural['reg_indxs_consolidate'].item()
         self.reg_names = session.neural['reg_indxs_consolidate'].dtype.names
@@ -59,6 +59,8 @@ class Predictor():
                 choices_nogap.append(self.trial_choices[trial])
             self.data = np.array(behavenet_nogap)
             self.trial_choices = np.array(choices_nogap)
+            if shuffle:
+                np.random.shuffle(self.trial_choices)
         if truncate:
             self._truncate_data()
 

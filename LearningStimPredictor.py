@@ -26,26 +26,24 @@ class LearningPredictor():
     session = None
     datatype = None
     data = None
-    trial_choices = None
+    trial_stim = None
     results = {} 
     loo_results = {}
 
     def __init__(self, session, shuffle=False):
         self.session = session
-        self.trial_choices = session.trialmarkers['ResponseSide']
-        if shuffle:
-            np.random.shuffle(self.trial_choices)
+        self.trial_stim = session.trialmarkers['CorrectSide']
         self.data = session.Vc['Vc']
         self.trial_indices = session.get_trial_indices()
 
-class LRChoice(LearningPredictor):
+class LRStim(LearningPredictor):
     """
     Logistic regression predictor. Looks one frame into the future. Regularized
     by L2 norm.
     """
 
-    def __init__(self, session):
-        super(LRChoice, self).__init__(session)
+    def __init__(self, session, shuffle=False):
+        super(LRStim, self).__init__(session, shuffle)
 
     def fit_all(self):
         """
@@ -107,8 +105,8 @@ class LRChoice(LearningPredictor):
         X = []
         y = []
         # Extracting training and test data
-        for trial in range(self.trial_choices.size):
-            choice = self.trial_choices[trial]
+        for trial in range(self.trial_stim.size):
+            choice = self.trial_stim[trial]
             if np.isnan(choice):
                 continue
             activity = window_data[trial,:,:]
@@ -126,15 +124,22 @@ class LRChoice(LearningPredictor):
         log_reg.fit(X, y)
         return log_reg
 
-class SVCChoice(LearningPredictor):
+class SVCStim(LearningPredictor):
     """
     SVM classifier with polynomial kernel. Looks one frame into the future.
     """
 
     results = []
 
-    def __init__(self, session):
-        super(SVCChoice, self).__init__(session)
+    def __init__(self, session, predict_previous=False, shuffle=False):
+        super(SVCStim, self).__init__(session, shuffle)
+        self.predict_previous = predict_previous
+
+        if predict_previous:
+            self.trial_stim = self.trial_stim[:-1]
+            self.data = self.data[1:,:,:] 
+            self.trial_indices = self.trial_indices[1:,:]
+            self.session.num_trials = self.session.num_trials - 1
 
     def fit_all(self):
         """
@@ -169,7 +174,7 @@ class SVCChoice(LearningPredictor):
                     continue
                 elif start_frame > (self.session.num_bins - 2):
                     continue
-                elif np.isnan(self.trial_choices[trial]):
+                elif np.isnan(self.trial_stim[trial]):
                     continue
                 frames = np.linspace(
                      start_frame, end_frame - 1, num_intervals
@@ -203,7 +208,8 @@ class SVCChoice(LearningPredictor):
 
         # Fit choice decoder for EVENT_LENGTH frames of the pre-stim duration.
         event_length = 10
-        for frames_pre_stim in range(event_length, 0, -1):
+        frame_step = 2
+        for frames_pre_stim in range(event_length, 0, -1*frame_step):
             window_activity = []
             choices = []
             for trial in range(self.session.num_trials):
@@ -211,13 +217,13 @@ class SVCChoice(LearningPredictor):
                 start_frame = stim_on_frame - frames_pre_stim
                 if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
                     (start_frame > (self.session.num_bins - 2)) or\
-                    (np.isnan(self.trial_choices[trial])):
+                    (np.isnan(self.trial_stim[trial])):
                     continue
                 start_frame = int(start_frame)
                 window_activity.append(
                     data[trial, start_frame:start_frame+2, :]
                     )
-                choices.append(self.trial_choices[trial])
+                choices.append(self.trial_stim[trial])
             choices = np.array(choices)
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
@@ -228,7 +234,8 @@ class SVCChoice(LearningPredictor):
 
         # Fit choice decoder for EVENT_LENGTH frames of the stim duration.
         event_length = 20
-        for frames_into_stim in range(event_length):
+        frame_step= 2
+        for frames_into_stim in range(0, event_length, frame_step):
             window_activity = []
             choices = []
             for trial in range(self.session.num_trials):
@@ -236,13 +243,13 @@ class SVCChoice(LearningPredictor):
                 start_frame = stim_on_frame + frames_into_stim 
                 if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
                     (start_frame > (self.session.num_bins - 2)) or\
-                    (np.isnan(self.trial_choices[trial])):
+                    (np.isnan(self.trial_stim[trial])):
                     continue
                 start_frame = int(start_frame)
                 window_activity.append(
                     data[trial, start_frame:start_frame+2, :]
                     )
-                choices.append(self.trial_choices[trial])
+                choices.append(self.trial_stim[trial])
             choices = np.array(choices)
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
@@ -253,7 +260,8 @@ class SVCChoice(LearningPredictor):
 
         # Fit choice decoder for EVENT_LENGTH frames post-stim.
         event_length = 10
-        for frames_post_stim in range(event_length):
+        frame_step = 2
+        for frames_post_stim in range(0, event_length, frame_step):
             window_activity = []
             choices = []
             for trial in range(self.session.num_trials):
@@ -261,13 +269,13 @@ class SVCChoice(LearningPredictor):
                 start_frame = stim_off_frame + frames_post_stim 
                 if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
                     (start_frame > (self.session.num_bins - 2)) or\
-                    (np.isnan(self.trial_choices[trial])):
+                    (np.isnan(self.trial_stim[trial])):
                     continue
                 start_frame = int(start_frame)
                 window_activity.append(
                     data[trial, start_frame:start_frame+2, :]
                     )
-                choices.append(self.trial_choices[trial])
+                choices.append(self.trial_stim[trial])
             choices = np.array(choices)
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
@@ -293,7 +301,7 @@ class SVCChoice(LearningPredictor):
         # Extracting training and test data
         assert(len(window_data) == choices.size)
         for trial in range(choices.size):
-            choice = self.trial_choices[trial]
+            choice = self.trial_stim[trial]
             activity = window_data[trial].flatten()
             if np.isnan(choice) or np.sum(np.isnan(activity)) > 0:
                 continue
