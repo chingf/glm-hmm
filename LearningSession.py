@@ -41,10 +41,12 @@ class LearningSession(object):
         self.dirpath = self.datadir + mouse + "/" + date + "/"
         if not os.path.isdir(self.dirpath):
             raise ValueError("Invalid path: " + self.dirpath)
-        if load_Vc:
-            self._load_Vc()
         self._load_trialmarkers()
         self._load_spatialdisc()
+        if load_Vc:
+            self._load_Vc()
+        else:
+            self.num_trials = self.trialmarkers['ResponseSide'].size
         
     def get_trial_indices(self):
         """

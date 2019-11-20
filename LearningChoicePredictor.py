@@ -154,10 +154,10 @@ class LRChoice(LearningPredictor):
     by L2 norm.
     """
 
-    def __init__(self, session):
-        super(LRChoice, self).__init__(session)
+    def __init__(self, session, shuffle=False):
+        super(LRChoice, self).__init__(session, shuffle)
 
-    def _fit_window(self, window_data):
+    def _fit_window(self, window_data, choices):
         """
         Fits a L2-regularized logistic regression model, predicting
         left/right licking choice.
@@ -172,8 +172,7 @@ class LRChoice(LearningPredictor):
         y = []
         # Extracting training and test data
         assert(len(window_data) == choices.size)
-        for trial in range(choices.size):
-            choice = self.trial_choices[trial]
+        for trial, choice in enumerate(choices):
             activity = window_data[trial].flatten()
             if np.isnan(choice) or np.sum(np.isnan(activity)) > 0:
                 continue
@@ -181,6 +180,8 @@ class LRChoice(LearningPredictor):
             y.append(int(choice-1))
         X = np.array(X)
         y = np.array(y)
+        if y.size < 70:
+            return np.nan, None, None, None
         indices = np.arange(y.size)
         X_train, X_test, y_train, y_test, train_indices, test_indices = \
             train_test_split(
@@ -191,7 +192,7 @@ class LRChoice(LearningPredictor):
         log_reg = LogisticRegressionCV(
             Cs=5, cv=5, scoring='accuracy', max_iter=500
             )
-        log_reg.fit(X_train, y)
+        log_reg.fit(X_train, y_train)
         correct_test_indices = (y_test == log_reg.predict(X_test))
         test_score = np.sum(correct_test_indices)/np.size(y_test)
         return test_score, log_reg, test_indices, correct_test_indices
@@ -203,8 +204,8 @@ class SVCChoice(LearningPredictor):
 
     results = []
 
-    def __init__(self, session):
-        super(SVCChoice, self).__init__(session)
+    def __init__(self, session, shuffle=False):
+        super(SVCChoice, self).__init__(session, shuffle)
 
     def get_trial_index_map(self):
         """
@@ -252,8 +253,7 @@ class SVCChoice(LearningPredictor):
         y = []
         # Extracting training and test data
         assert(len(window_data) == choices.size)
-        for trial in range(choices.size):
-            choice = self.trial_choices[trial]
+        for trial, choice in enumerate(choices):
             activity = window_data[trial].flatten()
             if np.isnan(choice) or np.sum(np.isnan(activity)) > 0:
                 continue
@@ -261,6 +261,8 @@ class SVCChoice(LearningPredictor):
             y.append(int(choice-1))
         X = np.array(X)
         y = np.array(y)
+        if y.size < 70:
+            return np.nan, None, None, None
         indices = np.arange(y.size)
         X_train, X_test, y_train, y_test, train_indices, test_indices = \
             train_test_split(
@@ -281,10 +283,10 @@ class SVCChoice(LearningPredictor):
                     score = svclassifier.score(X_test, y_test)
                     correct_test_indices = \
                         svclassifier.predict(X_test) == y_test
-                    
                     if best_score < score:
                         best_score = score
                         best_model = svclassifier
                         best_correct_test_indices = correct_test_indices
+
         return best_score, best_model, test_indices, best_correct_test_indices
 

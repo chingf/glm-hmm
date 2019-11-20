@@ -26,13 +26,13 @@ class LearningPsychometricPredictor():
     results = {} 
     loo_results = {}
 
-    def __init__(self, session):
+    def __init__(self, session, audtac=False):
         self.session = session
-        self.data = self._form_data_matrix() 
-        self.session.num_trials = self.session.num_trials - 1
+        self.data = self._form_data_matrix(audtac)
         self.trial_choices = session.trialmarkers['ResponseSide'][1:]
+        self.session.num_trials = self.session.num_trials - 1
 
-    def _form_data_matrix(self):
+    def _form_data_matrix(self, audtac):
         """
         Collects the covariates for the predictor: previous choice and
         discrimination difference The bias term is added automatically in the
@@ -46,10 +46,11 @@ class LearningPsychometricPredictor():
                 self.session.trialmarkers['ResponseSide'][trial - 1] - 1
                 )
             trial_data.append(self._get_discrimination_deltas(trial))
-            if self.session.is_aud_trial[trial]:
-                trial_data.append(1)
-            else:
-                trial_data.append(0)
+            if audtac:
+                if self.session.is_aud_trial[trial]:
+                    trial_data.append(1)
+                else:
+                    trial_data.append(0)
             data.append(trial_data)
         return np.array(data)
 

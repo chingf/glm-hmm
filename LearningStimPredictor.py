@@ -14,28 +14,29 @@ from sklearn.model_selection import train_test_split
 class LRStim(LRChoice):
     """
     Logistic regression predictor. Looks one frame into the future. Regularized
-    by L2 norm.
+    by L2 norm. To allow subclassing of Choice predicting class, the trial
+    stim array is saved under trial_choices.
     """
 
     session = None
     datatype = None
     data = None
-    trial_stim = None
+    trial_choices = None
     results = {} 
     loo_results = {}
 
     def __init__(self, session, predict_previous=False, shuffle=False):
         self.session = session
-        self.trial_stim = session.trialmarkers['CorrectSide']
+        self.trial_choices = session.trialmarkers['CorrectSide']
         
         if shuffle:
-            np.random.shuffle(self.trial_stim)
+            np.random.shuffle(self.trial_choices)
         self.data = session.Vc['Vc']
         self.trial_indices = session.get_trial_indices()
         self.predict_previous = predict_previous
         
         if predict_previous:
-            self.trial_stim = self.trial_stim[:-1]
+            self.trial_choices = self.trial_choices[:-1]
             self.data = self.data[1:,:,:] 
             self.trial_indices = self.trial_indices[1:,:]
             self.session.num_trials = self.session.num_trials - 1
@@ -43,27 +44,29 @@ class LRStim(LRChoice):
 class SVCStim(SVCChoice):
     """
     SVM classifier with polynomial kernel. Looks one frame into the future.
+    To allow subclassing of Choice predicting class, the trial stim array is
+    saved under trial_choices.
     """
 
     session = None
     datatype = None
     data = None
-    trial_stim = None
+    trial_choices = None
     results = {} 
     loo_results = {}
 
     def __init__(self, session, predict_previous=False, shuffle=False):
         self.session = session
-        self.trial_stim = session.trialmarkers['CorrectSide']
+        self.trial_choices = session.trialmarkers['CorrectSide']
         
         if shuffle:
-            np.random.shuffle(self.trial_stim)
+            np.random.shuffle(self.trial_choices)
         self.data = session.Vc['Vc']
         self.trial_indices = session.get_trial_indices()
         self.predict_previous = predict_previous
         
         if predict_previous:
-            self.trial_stim = self.trial_stim[:-1]
+            self.trial_choices = self.trial_choices[:-1]
             self.data = self.data[1:,:,:] 
             self.trial_indices = self.trial_indices[1:,:]
             self.session.num_trials = self.session.num_trials - 1
