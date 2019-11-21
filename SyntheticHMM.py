@@ -35,8 +35,8 @@ class SyntheticGLMHMM():
         curr_state = npr.choice(self.K)
         curr_output = self._get_output(full_input, curr_state)
         for trial, input in enumerate(inputs):
-            transitions = self._get_transition_matrix(full_input)
             full_input = np.hstack((prev_output, input, 1))
+            transitions = self._get_transition_matrix(full_input)
             prev_output = curr_output
             curr_state = npr.choice(
                 self.K, p=transitions[curr_state,:]

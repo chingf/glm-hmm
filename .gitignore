@@ -5,3 +5,4 @@ __pycache__
 analysis
 *.p
 pickles
+session_pickles
