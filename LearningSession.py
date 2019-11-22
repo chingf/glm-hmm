@@ -13,7 +13,7 @@ class LearningSession(object):
     """
     
     def __init__(
-            self, mouse, date, access_engram=False, load_Vc=True
+            self, mouse, date, access_engram=False, load_neural=True
             ):
         """
         Args
@@ -26,7 +26,7 @@ class LearningSession(object):
         self.num_trials = 0
         self.num_bins = 0
         self.num_components = 0
-        self.Vc = {}
+        self.neural = {}
         self.trialmarkers = {}
         self.spatialdisc = {}
         self.is_aud_trial = []
@@ -35,16 +35,19 @@ class LearningSession(object):
         if access_engram:
             self.datadir = "/home/chingf/engram/data/musall/learning/neural/"
             self.analysisdir = "/home/chingf/engram/analysis/musall/learning/"
+            self.neurpath = "/home/chingf/engram/data/musall/learning/"
         else:
             self.datadir = "/home/chingf/Code/Widefield/data/musall/learning/neural/"
             self.analysisdir = "/home/chingf/Code/Widefield/analysis/musall/learning/"
+            self.neurpath = "/home/chingf/Code/Widefield/data/musall/learning/" 
         self.dirpath = self.datadir + mouse + "/" + date + "/"
+        self.neurpath = self.neurpath + mouse + "/" + date + "/"
         if not os.path.isdir(self.dirpath):
             raise ValueError("Invalid path: " + self.dirpath)
         self._load_trialmarkers()
         self._load_spatialdisc()
-        if load_Vc:
-            self._load_Vc()
+        if load_neural:
+            self._load_neural()
         else:
             self.num_trials = self.trialmarkers['ResponseSide'].size
         
@@ -71,17 +74,17 @@ class LearningSession(object):
             trial_indices.append(t_i)
         return np.array(trial_indices)
 
-    def _load_Vc(self):
+    def _load_neural(self):
         """
-        Loads the `Vc.mat` file and saves its data structures.
+        Loads the `neural.mat` file and saves its data structures.
         """
 
-        filepath = self.dirpath + "Vc.mat"
-        matfile = h5py.File(filepath, 'r')
-        for key in matfile:
-            self.Vc[key] = np.array(matfile[key]).squeeze()
+        filepath = self.neurpath + "neural.mat"
+        matfile = loadmat(filepath)
+        for key in [key for key in matfile if not key.startswith("__")]:
+            self.neural[key] = np.array(matfile[key]).squeeze()
         self.num_trials, self.num_bins, self.num_components =\
-            self.Vc['Vc'].shape
+            self.neural['neural'].shape
 
     def _load_trialmarkers(self):
         """

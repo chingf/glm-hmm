@@ -126,7 +126,7 @@ class LRChoice(Predictor):
                 ]
             loo_data = self.data[:,:,loo_indices]
             results = self._fit_data(loo_data)
-            loo_results[reg_name] = loo_results
+            loo_results[reg_name] = results
         self.loo_results = loo_results
         return loo_results
 

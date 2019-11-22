@@ -30,21 +30,52 @@ class LearningPredictor():
     results = {} 
     loo_results = {}
 
-    def __init__(self, session, shuffle=False):
+    def __init__(self, session, mode=None, shuffle=False):
         self.session = session
+        self.reg_indices = session.neural['reg_indxs_consolidate'].item()
+        self.reg_names = session.neural['reg_indxs_consolidate'].dtype.names
         self.trial_choices = session.trialmarkers['ResponseSide']
         if shuffle:
             np.random.shuffle(self.trial_choices)
-        self.data = session.Vc['Vc']
+        self.data = session.neural['neural']
         self.trial_indices = session.get_trial_indices()
+        if mode == "LOO":
+            self.loo = True
+            self.loi = False
+        elif mode == "LOI":
+            self.loo = False
+            self.loi = True
 
     def fit_all(self):
         """
         Does a grid search over each index of the trial, using all the loaded
-        data. Returns a dictionary of scores and fitted models.
+        data. Returns a dictionary of dictionaries over scores and fitted models.
         """
 
-        results = self._fit_data(self.data)
+        if self.loo:
+            results = {}
+            for idx, reg_name in enumerate(self.reg_names):
+                components = self.reg_indices[idx].squeeze() - 1
+                num_components = self.session.num_components
+                loo_indices = [
+                    i for i in range(num_components) if i not in components
+                    ]
+                loo_data = self.data[:,:,loo_indices]
+                loo_result = self._fit_data(loo_data)
+                results[reg_name] = loo_result
+        elif self.loi:
+            results = {}
+            for idx, reg_name in enumerate(self.reg_names):
+                components = self.reg_indices[idx].squeeze() - 1
+                num_components = self.session.num_components
+                loi_indices = [
+                    i for i in range(num_components) if i in components
+                    ]
+                loi_data = self.data[:,:,loi_indices]
+                loi_result = self._fit_data(loi_data)
+                results[reg_name] = loi_result
+        else:
+            results = self._fit_data(self.data)
         self.results = results
         return results
 
@@ -151,15 +182,16 @@ class LearningPredictor():
 class LRChoice(LearningPredictor):
     """
     Logistic regression predictor. Looks one frame into the future. Regularized
-    by L2 norm.
+    by specified norm.
     """
 
-    def __init__(self, session, shuffle=False):
-        super(LRChoice, self).__init__(session, shuffle)
+    def __init__(self, session, mode=None, shuffle=False, penalty='l2'):
+        super(LRChoice, self).__init__(session, mode, shuffle)
+        self.penalty = penalty
 
     def _fit_window(self, window_data, choices):
         """
-        Fits a L2-regularized logistic regression model, predicting
+        Fits a regularized logistic regression model, predicting
         left/right licking choice.
         
         Args
@@ -190,7 +222,7 @@ class LRChoice(LearningPredictor):
         
         # Training the model with cross validation
         log_reg = LogisticRegressionCV(
-            Cs=5, cv=5, scoring='accuracy', max_iter=500
+            Cs=5, cv=5, scoring='accuracy', max_iter=500, penalty=self.penalty
             )
         log_reg.fit(X_train, y_train)
         correct_test_indices = (y_test == log_reg.predict(X_test))
