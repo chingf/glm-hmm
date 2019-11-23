@@ -37,6 +37,8 @@ class LearningPsychometricPredictor():
         Collects the covariates for the predictor: previous choice and
         discrimination difference The bias term is added automatically in the
         sklearn Logistic Regression model.
+        Order of covariates:
+        [prev choice, stim deltas, prev rewarded, prev audtac]
         """
 
         data = []
@@ -46,8 +48,9 @@ class LearningPsychometricPredictor():
                 self.session.trialmarkers['ResponseSide'][trial - 1] - 1
                 )
             trial_data.append(self._get_discrimination_deltas(trial))
+            trial_data.append(self.session['Rewarded'][trial - 1])
             if audtac:
-                if self.session.is_aud_trial[trial]:
+                if self.session.is_aud_trial[trial - 1]:
                     trial_data.append(1)
                 else:
                     trial_data.append(0)

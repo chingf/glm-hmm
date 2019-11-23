@@ -28,6 +28,10 @@ hard = np.array(
     [[0.01, 0.08, 0.02],
      [1., 0.04, -0.50]]
     )
+prevbiased = np.array(
+    [[0.01, 0.08, 0.02],
+     [3., 0.1, -1.5]]
+    )
 true_K = 2
 D = 1
 
@@ -39,6 +43,8 @@ def main(coef_mode, trans_mode):
         true_coef = med
     elif coef_mode == "hard":
         true_coef = hard
+    elif coef_mode == "prevbiased":
+        true_coef = prevbiased
 
     # Intialize true model
     if trans_mode == "std":
@@ -55,25 +61,24 @@ def main(coef_mode, trans_mode):
         )
 
     # Grid Search over regularization weights
-    prior_weights = np.linspace(1e-3, 1e1, num=10)
     prior_weights = [1e-4, 1e-2, 1e-1, 1, 2]
 
     # Grid Search over Ks
     Ks = [1,2,3,4,5]
     results_K = {}
-    for K in Ks:
-        results_K[K] = {}
-        for prior_weight in prior_weights:
-            results = _fit_hmm_Ks(
-                true_hmm, K, transitions, prior_weight
-                )
-            results_K[K][prior_weight] = results
+#    for K in Ks: #TODO: remove
+#        results_K[K] = {}
+#        for prior_weight in prior_weights:
+#            results = _fit_hmm_Ks(
+#                true_hmm, K, transitions, prior_weight
+#                )
+#            results_K[K][prior_weight] = results
 
     # Grid search over datasize
     dsizes = [
-        100, 200, 400, 600, 800, 1000,
-        1200, 1500, 2000, 2500, 3000,
-        4000, 5000, 6000, 7000, 8000
+        100, 200, 400, 600, 800, 1000
+#        1200, 1500, 2000, 2500, 3000, #TODO: remove
+#        4000, 4500, 5000
         ]
     results_dsize = {}
     for dsize in dsizes:

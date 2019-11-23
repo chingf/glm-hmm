@@ -187,6 +187,7 @@ class LRChoice(LearningPredictor):
 
     def __init__(self, session, mode=None, shuffle=False, penalty='l2'):
         super(LRChoice, self).__init__(session, mode, shuffle)
+        import pdb; pdb.set_trace()
         self.penalty = penalty
 
     def _fit_window(self, window_data, choices):
