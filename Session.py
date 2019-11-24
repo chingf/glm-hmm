@@ -12,7 +12,7 @@ class Session(object):
     
     def __init__(
             self, task, mouse, date,
-            load_behavenet=True, load_reconstructions=False, access_engram=False
+            load_behavenet=False, load_reconstructions=False, access_engram=False
             ):
         """
         Args
