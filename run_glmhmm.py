@@ -15,20 +15,6 @@ from SyntheticHMM import *
 import ssm
 import pickle
 
-# Coefficient options
-easy = np.array(
-    [[0.0, 1.5, 0.0],
-     [-0.0, -1.5, -0.0]]
-    )
-med = np.array(
-    [[0.01, 0.08, 0.02],
-     [0.5, 0.12, 2]]
-    )
-hard = np.array(
-    [[0.01, 0.08, 0.02],
-     [1., 0.04, -0.50]]
-    )
-true_K = 2
 D = 1
 
 def main(datatype, transitions):
@@ -37,7 +23,7 @@ def main(datatype, transitions):
     data = pickle.load(open(glmhmm_file, "rb"))
 
     # Grid Search over regularization weights
-    prior_weights = np.linspace(1e-3, 1e1, num=10)
+    prior_weights = [1e-3, 1e-2, 1e-1, 1e0, 1e1]
 
     # Grid Search over Ks
     Ks = [1,2,3,4,5]
@@ -97,7 +83,7 @@ def _fit_hmm_Ks(data, K, prior_weight, transitions):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Specify GLMHMM")
-    parser.add_argument("d")
-    parser.add_argument("t")
+    parser.add_argument("d") # Datatype
+    parser.add_argument("t") # Transition type
     args = parser.parse_args()
     main(args.d, args.t)

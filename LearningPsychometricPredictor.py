@@ -26,13 +26,13 @@ class LearningPsychometricPredictor():
     results = {} 
     loo_results = {}
 
-    def __init__(self, session, audtac=False):
+    def __init__(self, session, multimodal=False):
         self.session = session
-        self.data = self._form_data_matrix(audtac)
+        self.data = self._form_data_matrix(multimodal)
         self.trial_choices = session.trialmarkers['ResponseSide'][1:]
         self.session.num_trials = self.session.num_trials - 1
 
-    def _form_data_matrix(self, audtac):
+    def _form_data_matrix(self, multimodal):
         """
         Collects the covariates for the predictor: previous choice and
         discrimination difference The bias term is added automatically in the
@@ -48,8 +48,8 @@ class LearningPsychometricPredictor():
                 self.session.trialmarkers['ResponseSide'][trial - 1] - 1
                 )
             trial_data.append(self._get_discrimination_deltas(trial))
-            trial_data.append(self.session['Rewarded'][trial - 1])
-            if audtac:
+            trial_data.append(self.session.trialmarkers['Rewarded'][trial - 1])
+            if multimodal:
                 if self.session.is_aud_trial[trial - 1]:
                     trial_data.append(1)
                 else:
