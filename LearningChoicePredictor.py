@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.io import loadmat
 from LearningSession import *
+from sklearn.decomposition import PCA
 from sklearn.ensemble import BaggingClassifier
 from sklearn.model_selection import cross_validate
 from sklearn.model_selection import GridSearchCV
@@ -30,21 +31,35 @@ class LearningPredictor():
     results = {} 
     loo_results = {}
 
-    def __init__(self, session, mode=None, shuffle=False):
+    def __init__(self, session, reduce_dim=False, mode=None, shuffle=False):
         self.session = session
         self.reg_indices = session.neural['reg_indxs_consolidate'].item()
         self.reg_names = session.neural['reg_indxs_consolidate'].dtype.names
         self.trial_choices = session.trialmarkers['ResponseSide']
+        self.reduce_dim = reduce_dim
+        if reduce_dim:
+            desired_regions = ["FRP1", "MOp", "MOs", "SSp", "SSs1", "PL1", "MOB"]
+            self.desired_regions = desired_regions
+            self.pc_dim = 5 
+            self.reg_indxs = session.neural['reg_indxs_consolidate'].item()
+            self.reg_names = session.neural['reg_indxs_consolidate'].dtype.names
         if shuffle:
             np.random.shuffle(self.trial_choices)
         self.data = session.neural['neural']
         self.trial_indices = session.get_trial_indices()
         if mode == "LOO":
+            if reduce_dim:
+                raise ValueError("Cannot do LOO decoding and reduce dim.")
             self.loo = True
             self.loi = False
         elif mode == "LOI":
+            if reduce_dim:
+                raise ValueError("Cannot do LOO decoding and reduce dim.")
             self.loo = False
             self.loi = True
+        else:
+            self.loo = False
+            self.loi = False
 
     def fit_all(self):
         """
@@ -115,6 +130,8 @@ class LearningPredictor():
                     )
                 choices.append(self.trial_choices[trial])
             choices = np.array(choices)
+            if self.reduce_dim:
+                window_activity = self._reduce_dim(window_activity)
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -140,6 +157,8 @@ class LearningPredictor():
                     )
                 choices.append(self.trial_choices[trial])
             choices = np.array(choices)
+            if self.reduce_dim:
+                window_activity = self._reduce_dim(window_activity)
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -165,6 +184,8 @@ class LearningPredictor():
                     )
                 choices.append(self.trial_choices[trial])
             choices = np.array(choices)
+            if self.reduce_dim:
+                window_activity = self._reduce_dim(window_activity)
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -179,15 +200,76 @@ class LearningPredictor():
             }
         return results
 
+    def _reduce_dim(self, window_activity):
+        """
+        Reduces data by running PCA on the desired brain regions. Activity from
+        other brain regions are dropped.
+        """
+
+        window_activity = np.array(window_activity)
+        num_trials, num_bins, _ = window_activity.shape
+        reg_names = self.reg_names
+        reg_indxs = self.reg_indxs
+        total_num_comps = 0
+        for idx, reg in enumerate(reg_names):
+            if not reg in self.desired_regions:
+                continue
+            n_c = min(self.pc_dim, reg_indxs[idx].size)
+            total_num_comps += n_c
+        pc_data = np.zeros((num_trials, num_bins, total_num_comps))*np.nan
+        comp_idx = 0
+
+        # Loop through desired regions and run PCA trial-by-trial
+        for idx, reg in enumerate(reg_names):
+            if not reg in self.desired_regions:
+                continue
+            n_c = min(self.pc_dim, reg_indxs[idx].size)
+            next_comp_idx = comp_idx + n_c
+            reg_indx = reg_indxs[idx] - 1
+            reg_data = window_activity[:, :, reg_indx.flatten()]
+            num_regs = reg_indx.flatten().size
+            if np.sum(np.isnan(reg_data)) == reg_data.size:
+                continue
+
+            # Ignore NaN sections
+            nans = np.argwhere(np.isnan(reg_data))[:,0].flatten()
+            beginning_nans = nans[nans < num_bins//2]
+            ending_nans = nans[nans > num_bins - num_bins//2]
+            if beginning_nans.size > 0:
+                start = max(beginning_nans) + 1
+            else:
+                start = 0 
+            if ending_nans.size > 0:
+                end = min(ending_nans)
+            else:
+                end = num_bins
+
+            # Transform with PCS
+            pca = PCA(n_components=n_c, whiten=True)
+            data_to_reduce = reg_data[:,start:end,:]
+            num_nonnan_bins = data_to_reduce.shape[1]
+            data_to_reduce = data_to_reduce.reshape(
+                (num_trials*num_nonnan_bins, num_regs)
+                )
+            transformed_data = pca.fit_transform(data_to_reduce)
+            transformed_data = transformed_data.reshape(
+                (num_trials, num_nonnan_bins, n_c)
+                )
+            pc_data[:, start:end, comp_idx:next_comp_idx] = transformed_data
+            comp_idx = next_comp_idx
+        return pc_data
+    
 class LRChoice(LearningPredictor):
     """
     Logistic regression predictor. Looks one frame into the future. Regularized
     by specified norm.
     """
 
-    def __init__(self, session, mode=None, shuffle=False, penalty='l2'):
-        super(LRChoice, self).__init__(session, mode, shuffle)
-        import pdb; pdb.set_trace()
+    def __init__(
+        self, session, reduce_dim=False,
+        mode=None, shuffle=False, penalty='l2'
+        ):
+        super(LRChoice, self).__init__(session, reduce_dim, mode, shuffle)
         self.penalty = penalty
 
     def _fit_window(self, window_data, choices):

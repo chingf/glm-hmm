@@ -24,14 +24,13 @@ def main(mode=None):
             )
     else:
         pickle.dump(results,
-            open("pickles/choicedecoding_learning_mSM63.p", "wb")
+            open("pickles/choicedecodingreduce_learning_mSM63.p", "wb")
             )
 
 def _run_decoding(mouse, day, mode):
     session = LearningSession(mouse, day, access_engram=True)
-    predictor = LRChoice(session, mode=mode)
+    predictor = LRChoice(session, reduce_dim=True, mode=mode)
     result = predictor.fit_all()
     return result
 
-main(mode="LOO")
-main(mode="LOI")
+main(mode=None)
