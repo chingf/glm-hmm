@@ -31,16 +31,17 @@ class LearningPredictor():
     results = {} 
     loo_results = {}
 
-    def __init__(self, session, reduce_dim=False, mode=None, shuffle=False):
+    def __init__(self, session, reduce_dim=None, mode=None, shuffle=False):
         self.session = session
         self.reg_indices = session.neural['reg_indxs_consolidate'].item()
         self.reg_names = session.neural['reg_indxs_consolidate'].dtype.names
         self.trial_choices = session.trialmarkers['ResponseSide']
-        self.reduce_dim = reduce_dim
-        if reduce_dim:
-            desired_regions = ["FRP1", "MOp", "MOs", "SSp", "SSs1", "PL1", "MOB"]
+        if not reduce_dim is None:
+            desired_regions = [
+                "FRP1", "MOp", "MOs", "SSp", "SSs1", "PL1", "MOB"
+                ]
             self.desired_regions = desired_regions
-            self.pc_dim = 5 
+            self.pc_var_threshold = reduce_dim
             self.reg_indxs = session.neural['reg_indxs_consolidate'].item()
             self.reg_names = session.neural['reg_indxs_consolidate'].dtype.names
         if shuffle:
@@ -48,12 +49,12 @@ class LearningPredictor():
         self.data = session.neural['neural']
         self.trial_indices = session.get_trial_indices()
         if mode == "LOO":
-            if reduce_dim:
+            if not reduce_dim is None:
                 raise ValueError("Cannot do LOO decoding and reduce dim.")
             self.loo = True
             self.loi = False
         elif mode == "LOI":
-            if reduce_dim:
+            if not reduce_dim is None:
                 raise ValueError("Cannot do LOO decoding and reduce dim.")
             self.loo = False
             self.loi = True
@@ -114,24 +115,20 @@ class LearningPredictor():
 
         # Fit choice decoder for EVENT_LENGTH frames of the pre-stim duration.
         event_length = 10
-        for frames_pre_stim in range(event_length, 0, -1):
-            window_activity = []
-            choices = []
-            for trial in range(self.session.num_trials):
-                stim_on_frame = self.trial_indices[trial, 1]
-                start_frame = stim_on_frame - frames_pre_stim
-                if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
-                    (start_frame > (self.session.num_bins - 2)) or\
-                    (np.isnan(self.trial_choices[trial])):
-                    continue
-                start_frame = int(start_frame)
-                window_activity.append(
-                    data[trial, start_frame:start_frame+2, :]
-                    )
-                choices.append(self.trial_choices[trial])
-            choices = np.array(choices)
-            if self.reduce_dim:
-                window_activity = self._reduce_dim(window_activity)
+        event_activity = []
+        choices = []
+        for trial in range(self.session.num_trials):
+            if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
+                (np.isnan(self.trial_choices[trial])):
+                continue
+            stim_on_frame = int(self.trial_indices[trial, 1])
+            start_frame = int(stim_on_frame - event_length)
+            event_activity.append(data[trial, start_frame:stim_on_frame+1, :])
+            choices.append(self.trial_choices[trial])
+        choices = np.array(choices)
+        event_activity = self._reduce_dim(event_activity)
+        for frame in range(event_length):
+            window_activity = event_activity[:, frame:frame+2, :]
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -141,24 +138,20 @@ class LearningPredictor():
 
         # Fit choice decoder for EVENT_LENGTH frames of the stim duration.
         event_length = 20
-        for frames_into_stim in range(event_length):
-            window_activity = []
-            choices = []
-            for trial in range(self.session.num_trials):
-                stim_on_frame = self.trial_indices[trial, 1]
-                start_frame = stim_on_frame + frames_into_stim 
-                if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
-                    (start_frame > (self.session.num_bins - 2)) or\
-                    (np.isnan(self.trial_choices[trial])):
-                    continue
-                start_frame = int(start_frame)
-                window_activity.append(
-                    data[trial, start_frame:start_frame+2, :]
-                    )
-                choices.append(self.trial_choices[trial])
-            choices = np.array(choices)
-            if self.reduce_dim:
-                window_activity = self._reduce_dim(window_activity)
+        event_activity = []
+        choices = []
+        for trial in range(self.session.num_trials):
+            if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
+                (np.isnan(self.trial_choices[trial])):
+                continue
+            stim_on_frame = int(self.trial_indices[trial, 1])
+            end_frame = int(stim_on_frame + event_length)
+            event_activity.append(data[trial, stim_on_frame:end_frame+1, :])
+            choices.append(self.trial_choices[trial])
+        choices = np.array(choices)
+        event_activity = self._reduce_dim(event_activity)
+        for frame in range(event_length):
+            window_activity = event_activity[:, frame:frame+2, :]
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -168,24 +161,20 @@ class LearningPredictor():
 
         # Fit choice decoder for EVENT_LENGTH frames post-stim.
         event_length = 10
-        for frames_post_stim in range(event_length):
-            window_activity = []
-            choices = []
-            for trial in range(self.session.num_trials):
-                stim_off_frame = self.trial_indices[trial, 2]
-                start_frame = stim_off_frame + frames_post_stim 
-                if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
-                    (start_frame > (self.session.num_bins - 2)) or\
-                    (np.isnan(self.trial_choices[trial])):
-                    continue
-                start_frame = int(start_frame)
-                window_activity.append(
-                    data[trial, start_frame:start_frame+2, :]
-                    )
-                choices.append(self.trial_choices[trial])
-            choices = np.array(choices)
-            if self.reduce_dim:
-                window_activity = self._reduce_dim(window_activity)
+        event_activity = []
+        choices = []
+        for trial in range(self.session.num_trials):
+            if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
+                (np.isnan(self.trial_choices[trial])):
+                continue
+            stim_off_frame = int(self.trial_indices[trial, 2])
+            end_frame = int(stim_off_frame + event_length)
+            event_activity.append(data[trial, stim_off_frame:end_frame+1, :])
+            choices.append(self.trial_choices[trial])
+        choices = np.array(choices)
+        event_activity = self._reduce_dim(event_activity)
+        for frame in range(event_length):
+            window_activity = event_activity[:, frame:frame+2, :]
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -210,21 +199,13 @@ class LearningPredictor():
         num_trials, num_bins, _ = window_activity.shape
         reg_names = self.reg_names
         reg_indxs = self.reg_indxs
-        total_num_comps = 0
-        for idx, reg in enumerate(reg_names):
-            if not reg in self.desired_regions:
-                continue
-            n_c = min(self.pc_dim, reg_indxs[idx].size)
-            total_num_comps += n_c
-        pc_data = np.zeros((num_trials, num_bins, total_num_comps))*np.nan
-        comp_idx = 0
 
         # Loop through desired regions and run PCA trial-by-trial
+        pc_data = []
         for idx, reg in enumerate(reg_names):
+            # Extract data if valid (not all nans and is in desired region)
             if not reg in self.desired_regions:
                 continue
-            n_c = min(self.pc_dim, reg_indxs[idx].size)
-            next_comp_idx = comp_idx + n_c
             reg_indx = reg_indxs[idx] - 1
             reg_data = window_activity[:, :, reg_indx.flatten()]
             num_regs = reg_indx.flatten().size
@@ -245,18 +226,22 @@ class LearningPredictor():
                 end = num_bins
 
             # Transform with PCS
-            pca = PCA(n_components=n_c, whiten=True)
             data_to_reduce = reg_data[:,start:end,:]
             num_nonnan_bins = data_to_reduce.shape[1]
             data_to_reduce = data_to_reduce.reshape(
                 (num_trials*num_nonnan_bins, num_regs)
                 )
-            transformed_data = pca.fit_transform(data_to_reduce)
+            for n_c in range(1, reg_indx.size):
+                pca = PCA(n_components=n_c, whiten=True)
+                transformed_data = pca.fit_transform(data_to_reduce)
+                import pdb; pdb.set_trace()
+                if np.sum(pca.explained_variance_ratio_) > self.pc_var_threshold:
+                    break
             transformed_data = transformed_data.reshape(
                 (num_trials, num_nonnan_bins, n_c)
                 )
-            pc_data[:, start:end, comp_idx:next_comp_idx] = transformed_data
-            comp_idx = next_comp_idx
+            pc_data.append(transformed_data)
+        pc_data = np.concatenate(pc_data, axis=2)
         return pc_data
     
 class LRChoice(LearningPredictor):
@@ -266,7 +251,7 @@ class LRChoice(LearningPredictor):
     """
 
     def __init__(
-        self, session, reduce_dim=False,
+        self, session, reduce_dim=None,
         mode=None, shuffle=False, penalty='l2'
         ):
         super(LRChoice, self).__init__(session, reduce_dim, mode, shuffle)

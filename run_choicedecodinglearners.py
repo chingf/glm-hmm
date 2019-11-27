@@ -5,14 +5,14 @@ from datetime import datetime
 from LearningSession import *
 from LearningChoicePredictor import *
 
-def main(mode=None):
+def main(mode=None, reduce_dim=None):
     mouse = "mSM63"
     days = os.listdir("/home/chingf/engram/data/musall/learning/neural/mSM63")
     days = [d for d in days if "2018" in d]
     days.sort(key = lambda date: datetime.strptime(date, '%d-%b-%Y'))
     results = []
     for day in days:
-        result = _run_decoding(mouse, day, mode)
+        result = _run_decoding(mouse, day, mode, reduce_dim)
         results.append(result)
     if mode == "LOO":
         pickle.dump(results,
@@ -24,13 +24,15 @@ def main(mode=None):
             )
     else:
         pickle.dump(results,
-            open("pickles/choicedecodingreduce_learning_mSM63.p", "wb")
+            open("pickles/choicedecodingreduce" +\
+                    str(reduce_dim) + "_learning_mSM63.p", "wb")
             )
 
-def _run_decoding(mouse, day, mode):
+def _run_decoding(mouse, day, mode, reduce_dim):
     session = LearningSession(mouse, day, access_engram=True)
-    predictor = LRChoice(session, reduce_dim=True, mode=mode)
+    predictor = LRChoice(session, reduce_dim=reduce_dim, mode=mode)
     result = predictor.fit_all()
     return result
 
-main(mode=None)
+for rd in [0.75, 0.8, 0.9, 1.0]:
+    main(mode=None, reduce_dim=rd)
