@@ -24,7 +24,7 @@ def main(mode=None, reduce_dim=None):
             )
     else:
         pickle.dump(results,
-            open("pickles/choicedecodingreduce" +\
+            open("pickles/choicedecodingframereduce" +\
                     str(reduce_dim) + "_learning_mSM63.p", "wb")
             )
 
@@ -34,5 +34,5 @@ def _run_decoding(mouse, day, mode, reduce_dim):
     result = predictor.fit_all()
     return result
 
-for rd in [0.75, 0.8, 0.9, 1.0]:
+for rd in [0.9, 0.95, 1.0]:
     main(mode=None, reduce_dim=rd)

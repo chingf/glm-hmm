@@ -128,7 +128,7 @@ class LearningPredictor():
         choices = np.array(choices)
         event_activity = self._reduce_dim(event_activity)
         for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+2, :]
+            window_activity = event_activity[:, frame:frame+1, :]
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -151,7 +151,7 @@ class LearningPredictor():
         choices = np.array(choices)
         event_activity = self._reduce_dim(event_activity)
         for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+2, :]
+            window_activity = event_activity[:, frame:frame+1, :]
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -174,7 +174,7 @@ class LearningPredictor():
         choices = np.array(choices)
         event_activity = self._reduce_dim(event_activity)
         for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+2, :]
+            window_activity = event_activity[:, frame:frame+1, :]
             score, model, test_indices, correct_test_indices = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -234,7 +234,6 @@ class LearningPredictor():
             for n_c in range(1, reg_indx.size):
                 pca = PCA(n_components=n_c, whiten=True)
                 transformed_data = pca.fit_transform(data_to_reduce)
-                import pdb; pdb.set_trace()
                 if np.sum(pca.explained_variance_ratio_) > self.pc_var_threshold:
                     break
             transformed_data = transformed_data.reshape(
@@ -289,8 +288,13 @@ class LRChoice(LearningPredictor):
                 )
         
         # Training the model with cross validation
+        if self.penalty == "l1":
+            solver="liblinear"
+        else:
+            solver="lbfgs"
         log_reg = LogisticRegressionCV(
-            Cs=5, cv=5, scoring='accuracy', max_iter=500, penalty=self.penalty
+            Cs=5, cv=5, scoring='accuracy', max_iter=500,
+            penalty=self.penalty, solver=solver
             )
         log_reg.fit(X_train, y_train)
         correct_test_indices = (y_test == log_reg.predict(X_test))
