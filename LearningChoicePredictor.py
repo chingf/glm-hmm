@@ -35,6 +35,7 @@ class LearningPredictor():
         self.session = session
         self.reg_indices = session.neural['reg_indxs_consolidate'].item()
         self.reg_names = session.neural['reg_indxs_consolidate'].dtype.names
+        import pdb; pdb.set_trace()
         self.trial_choices = session.trialmarkers['ResponseSide']
         if not reduce_dim is None:
             desired_regions = [
@@ -112,11 +113,14 @@ class LearningPredictor():
         models = []
         all_test_indices = []
         all_correct_test_indices = []
+        all_trial_labels = []
+        all_predict_prob = []
 
         # Fit choice decoder for EVENT_LENGTH frames of the pre-stim duration.
         event_length = 10
         event_activity = []
         choices = []
+        trial_labels = []
         for trial in range(self.session.num_trials):
             if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
                 (np.isnan(self.trial_choices[trial])):
@@ -125,21 +129,26 @@ class LearningPredictor():
             start_frame = int(stim_on_frame - event_length)
             event_activity.append(data[trial, start_frame:stim_on_frame+1, :])
             choices.append(self.trial_choices[trial])
+            trial_labels.append(trial)
         choices = np.array(choices)
+        trial_labels = np.array(trial_labels)
         event_activity = self._reduce_dim(event_activity)
         for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+1, :]
-            score, model, test_indices, correct_test_indices = \
+            window_activity = event_activity[:, frame:frame+2, :]
+            score, model, test_indices, correct_test_indices, predict_prob = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
             models.append(model)
             all_test_indices.append(test_indices)
             all_correct_test_indices.append(correct_test_indices)
+            all_trial_labels.append(trial_labels)
+            all_predict_prob.append(predict_prob)
 
         # Fit choice decoder for EVENT_LENGTH frames of the stim duration.
         event_length = 20
         event_activity = []
         choices = []
+        trial_labels = []
         for trial in range(self.session.num_trials):
             if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
                 (np.isnan(self.trial_choices[trial])):
@@ -148,21 +157,26 @@ class LearningPredictor():
             end_frame = int(stim_on_frame + event_length)
             event_activity.append(data[trial, stim_on_frame:end_frame+1, :])
             choices.append(self.trial_choices[trial])
+            trial_labels.append(trial)
         choices = np.array(choices)
+        trial_labels = np.array(trial_labels)
         event_activity = self._reduce_dim(event_activity)
         for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+1, :]
-            score, model, test_indices, correct_test_indices = \
+            window_activity = event_activity[:, frame:frame+2, :]
+            score, model, test_indices, correct_test_indices, predict_prob = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
             models.append(model)
             all_test_indices.append(test_indices)
             all_correct_test_indices.append(correct_test_indices)
+            all_trial_labels.append(trial_labels)
+            all_predict_prob.append(predict_prob)
 
         # Fit choice decoder for EVENT_LENGTH frames post-stim.
         event_length = 10
         event_activity = []
         choices = []
+        trial_labels = []
         for trial in range(self.session.num_trials):
             if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
                 (np.isnan(self.trial_choices[trial])):
@@ -171,21 +185,27 @@ class LearningPredictor():
             end_frame = int(stim_off_frame + event_length)
             event_activity.append(data[trial, stim_off_frame:end_frame+1, :])
             choices.append(self.trial_choices[trial])
+            trial_labels.append(trial)
         choices = np.array(choices)
+        trial_labels = np.array(trial_labels)
         event_activity = self._reduce_dim(event_activity)
         for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+1, :]
-            score, model, test_indices, correct_test_indices = \
+            window_activity = event_activity[:, frame:frame+2, :]
+            score, model, test_indices, correct_test_indices, predict_prob = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
             models.append(model)
             all_test_indices.append(test_indices)
             all_correct_test_indices.append(correct_test_indices)
+            all_trial_labels.append(trial_labels)
+            all_predict_prob.append(predict_prob)
 
         results = {
             "scores": scores, "models": models,
             "test_indices": all_test_indices,
-            "correct_test_indices": all_correct_test_indices
+            "correct_test_indices": all_correct_test_indices,
+            "trial_labels": all_trial_labels,
+            "predic_prob": all_predict_prob
             }
         return results
 
@@ -280,7 +300,7 @@ class LRChoice(LearningPredictor):
         X = np.array(X)
         y = np.array(y)
         if y.size < 70:
-            return np.nan, None, None, None
+            return np.nan, None, None, None, None
         indices = np.arange(y.size)
         X_train, X_test, y_train, y_test, train_indices, test_indices = \
             train_test_split(
@@ -299,7 +319,8 @@ class LRChoice(LearningPredictor):
         log_reg.fit(X_train, y_train)
         correct_test_indices = (y_test == log_reg.predict(X_test))
         test_score = np.sum(correct_test_indices)/np.size(y_test)
-        return test_score, log_reg, test_indices, correct_test_indices
+        predict_prob = log_reg.predict_proba(X)
+        return test_score, log_reg, test_indices, correct_test_indices, predict_prob
 
 class SVCChoice(LearningPredictor):
     """

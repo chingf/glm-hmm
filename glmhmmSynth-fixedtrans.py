@@ -36,7 +36,7 @@ true_K = 2
 true_coef = None
 D = 1
 
-def main(coef_mode, trans_mode):
+def main(coef_mode):
     global true_coef
     np.random.seed(0)
     if coef_mode == "easy":
@@ -49,15 +49,8 @@ def main(coef_mode, trans_mode):
         true_coef = prevbiased
 
     # Intialize true model
-    if trans_mode == "std":
-        transition_coefs = np.zeros((true_K, true_coef.shape[1]))
-        transitions = "standard"
-    elif trans_mode == "indEasy":
-        transition_coefs = np.random.rand(true_K, true_coef.shape[1])
-        transitions = "inputdriven"
-    elif trans_mode == "indHard":
-        transition_coefs = np.random.rand(true_K, true_coef.shape[1])*2
-        transitions = "inputdriven"
+    transition_coefs = np.zeros((true_K, true_coef.shape[1]))
+    transitions = "fixed"
     true_hmm = SyntheticInputDrivenGLMHMM(
         true_K, true_coef, transition_coefs
         )
@@ -68,13 +61,6 @@ def main(coef_mode, trans_mode):
     # Grid Search over Ks
     Ks = [1,2,3,4,5]
     results_K = {}
-#    for K in Ks:
-#        results_K[K] = {}
-#        for prior_weight in prior_weights:
-#            results = _fit_hmm_Ks(
-#                true_hmm, K, transitions, prior_weight
-#                )
-#            results_K[K][prior_weight] = results
 
     # Grid search over datasize
     dsizes = [
@@ -95,26 +81,29 @@ def main(coef_mode, trans_mode):
     all_results['true_hmm'] = true_hmm
     all_results['results_K'] = results_K
     all_results['results_dsize'] = results_dsize
-#    pickle.dump(all_results, open(
-#        trans_mode + "_" + coef_mode + str(true_K) + "state_results.p","wb"
-#        ))
+    pickle.dump(all_results, open(
+        "fixedtrans_" + coef_mode + str(true_K) + "state_results.p","wb"
+        ))
 
 def _fit_hmm(
-    K, X_train, y_train,
-    X_test, y_test, transitions, prior_weight
+    K, X_train, y_train, X_test, y_test,
+    transitions, prior_weight, true_hmm
     ):
     """
     Fits HMM with given parameters 20 times and returns all of them in a list
     of dictionaries
     """
 
+    X_train = X_train.astype(float)
+    X_test = X_test.astype(float)
     input_size = X_train.shape[1]
     hmm = ssm.HMM(
         K, D, M=input_size, observations="fixedlogistic",
         transitions=transitions,
+        transition_kwargs={"log_Ps":true_hmm.log_Ps},
         observation_kwargs={
             "input_size":input_size, "prior_weight": prior_weight,
-            "set_coef":true_coef
+            "set_coef": true_hmm.coefs
             }
         )
     lls = hmm.fit(
@@ -129,37 +118,13 @@ def _fit_hmm(
     result['test_ll'] = test_ll
     return result
 
-def _fit_hmm_Ks(true_hmm, K, transitions, prior_weight):
-    # Generate simulated data
-    train_size = 700
-    test_size = 500 
-    results = []
-    for _ in range(30):
-        X_train = np.random.choice(
-            np.arange(-30,31,1), size=train_size).reshape((-1,1))
-        X_test = np.random.choice(
-            np.arange(-30,31,1), size=test_size).reshape((-1,1))
-        sim_states_train, sim_y_train = true_hmm.sample(X_train)
-        sim_states_test, sim_y_test = true_hmm.sample(X_test)
-        sim_y_train = sim_y_train.astype(int)
-        sim_y_test = sim_y_test.astype(int)
-        sim_X_test = np.hstack((sim_y_test[:-1], X_test[1:].copy()))
-        sim_X_train = np.hstack((sim_y_train[:-1], X_train[1:].copy()))
-        sim_y_test = sim_y_test[1:]
-        sim_y_train = sim_y_train[1:]
-        result = _fit_hmm(
-            K, sim_X_train, sim_y_train,
-            sim_X_test, sim_y_test, transitions, prior_weight
-            )
-        results.append(result)
-    return results
-
 def _fit_hmm_datasize(true_hmm, train_size, transitions, prior_weight):
     test_size = 500 
     results = []
     for _ in range(20):
         X_train = np.random.choice(
-            np.arange(-30,31,1), size=train_size).reshape((-1,1))
+            np.arange(-30,31,1), size=train_size
+            ).reshape((-1,1))
         X_test = np.random.choice(
             np.arange(-30,31,1), size=test_size).reshape((-1,1))
         sim_states_train, sim_y_train = true_hmm.sample(X_train)
@@ -171,18 +136,19 @@ def _fit_hmm_datasize(true_hmm, train_size, transitions, prior_weight):
         sim_y_test = sim_y_test[1:]
         sim_y_train = sim_y_train[1:]
         result = _fit_hmm(
-            true_K, sim_X_train, sim_y_train,
-            sim_X_test, sim_y_test, transitions, prior_weight)
+            true_K, sim_X_train, sim_y_train, sim_X_test, sim_y_test,
+            transitions, prior_weight, true_hmm)
         result['X_train'] = sim_X_train
         result['y_train'] = sim_y_train
         result['X_test'] = sim_X_test
         result['y_test'] = sim_y_test
+        result['z_train'] = sim_states_train
+        result['z_test'] = sim_states_test
         results.append(result)
     return results
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Specify GLMHMM")
     parser.add_argument("c")
-    parser.add_argument("t")
     args = parser.parse_args()
-    main(args.c, args.t)
+    main(args.c)
