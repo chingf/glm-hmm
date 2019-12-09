@@ -33,18 +33,18 @@ class LearningPredictor():
 
     def __init__(self, session, reduce_dim=None, mode=None, shuffle=False):
         self.session = session
-        self.reg_indices = session.neural['reg_indxs_consolidate'].item()
-        self.reg_names = session.neural['reg_indxs_consolidate'].dtype.names
-        import pdb; pdb.set_trace()
+        self.reg_indices = session.neural['reg_indxs'].item()
+        self.reg_names = session.neural['reg_indxs'].dtype.names
         self.trial_choices = session.trialmarkers['ResponseSide']
+        self.to_reduce = False
         if not reduce_dim is None:
             desired_regions = [
-                "FRP1", "MOp", "MOs", "SSp", "SSs1", "PL1", "MOB"
+                'MOB', 'MOs1', 'SSp_bfd1', 'SSp_m1', 'SSp_n1', 'SSs1'
+                #"FRP1", "MOp", "MOs", "SSp", "SSs1", "PL1", "MOB"
                 ]
             self.desired_regions = desired_regions
             self.pc_var_threshold = reduce_dim
-            self.reg_indxs = session.neural['reg_indxs_consolidate'].item()
-            self.reg_names = session.neural['reg_indxs_consolidate'].dtype.names
+            self.to_reduce = True
         if shuffle:
             np.random.shuffle(self.trial_choices)
         self.data = session.neural['neural']
@@ -82,8 +82,21 @@ class LearningPredictor():
                 results[reg_name] = loo_result
         elif self.loi:
             results = {}
-            for idx, reg_name in enumerate(self.reg_names):
-                components = self.reg_indices[idx].squeeze() - 1
+            reg_names_rl = [r[:-2] for r in self.reg_names]
+            reg_names_rl = np.unique(reg_names_rl)
+            for reg_name in reg_names_rl:
+                components = []
+                reg_name_r = reg_name + "_R"
+                reg_name_l = reg_name + "_L"
+                if reg_name_r in self.reg_names:
+                    r_idx = self.reg_names.index(reg_name_r)
+                    r_components = self.reg_indices[r_idx].squeeze() - 1
+                    components.append(r_components)
+                if reg_name_l in self.reg_names:
+                    l_idx = self.reg_names.index(reg_name_l)
+                    l_components = self.reg_indices[l_idx].squeeze() - 1
+                    components.append(l_components)
+                components = np.hstack(components)
                 num_components = self.session.num_components
                 loi_indices = [
                     i for i in range(num_components) if i in components
@@ -132,9 +145,12 @@ class LearningPredictor():
             trial_labels.append(trial)
         choices = np.array(choices)
         trial_labels = np.array(trial_labels)
-        event_activity = self._reduce_dim(event_activity)
+        if self.to_reduce:
+            event_activity = self._reduce_dim(event_activity)
+        else:
+            event_activity = np.array(event_activity)
         for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+2, :]
+            window_activity = event_activity[:, frame:frame+1, :]
             score, model, test_indices, correct_test_indices, predict_prob = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -160,9 +176,12 @@ class LearningPredictor():
             trial_labels.append(trial)
         choices = np.array(choices)
         trial_labels = np.array(trial_labels)
-        event_activity = self._reduce_dim(event_activity)
+        if self.to_reduce:
+            event_activity = self._reduce_dim(event_activity)
+        else:
+            event_activity = np.array(event_activity)
         for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+2, :]
+            window_activity = event_activity[:, frame:frame+1, :]
             score, model, test_indices, correct_test_indices, predict_prob = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -188,9 +207,12 @@ class LearningPredictor():
             trial_labels.append(trial)
         choices = np.array(choices)
         trial_labels = np.array(trial_labels)
-        event_activity = self._reduce_dim(event_activity)
+        if self.to_reduce:
+            event_activity = self._reduce_dim(event_activity)
+        else:
+            event_activity = np.array(event_activity)
         for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+2, :]
+            window_activity = event_activity[:, frame:frame+1, :]
             score, model, test_indices, correct_test_indices, predict_prob = \
                 self._fit_window(window_activity, choices)
             scores.append(score)
@@ -218,15 +240,16 @@ class LearningPredictor():
         window_activity = np.array(window_activity)
         num_trials, num_bins, _ = window_activity.shape
         reg_names = self.reg_names
-        reg_indxs = self.reg_indxs
+        reg_indices = self.reg_indices
 
         # Loop through desired regions and run PCA trial-by-trial
         pc_data = []
-        for idx, reg in enumerate(reg_names):
+        for idx, reg_rl in enumerate(reg_names):
             # Extract data if valid (not all nans and is in desired region)
+            reg = reg_rl[:-2]
             if not reg in self.desired_regions:
                 continue
-            reg_indx = reg_indxs[idx] - 1
+            reg_indx = reg_indices[idx] - 1
             reg_data = window_activity[:, :, reg_indx.flatten()]
             num_regs = reg_indx.flatten().size
             if np.sum(np.isnan(reg_data)) == reg_data.size:
@@ -304,7 +327,7 @@ class LRChoice(LearningPredictor):
         indices = np.arange(y.size)
         X_train, X_test, y_train, y_test, train_indices, test_indices = \
             train_test_split(
-                X, y, indices, test_size = 0.20, stratify=y
+                X, y, indices, test_size = 0.30, stratify=y
                 )
         
         # Training the model with cross validation

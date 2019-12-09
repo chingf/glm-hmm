@@ -20,11 +20,11 @@ def main(mode=None, reduce_dim=None):
             )
     elif mode == "LOI":
         pickle.dump(results,
-            open("pickles/choicedecodingloi_learning_mSM63.p", "wb")
+            open("pickles/choicedecodingloireg_learning_mSM63.p", "wb")
             )
     else:
         pickle.dump(results,
-            open("pickles/choicedecodingreduce" +\
+            open("pickles/choicedecodingregreduce" +\
                     str(reduce_dim) + "_learning_mSM63.p", "wb")
             )
 
@@ -35,4 +35,4 @@ def _run_decoding(mouse, day, mode, reduce_dim):
     return result
 
 for rd in [1.0]:
-    main(mode="LOI", reduce_dim=None)
+    main(reduce_dim=1.0)
