@@ -124,110 +124,111 @@ class LearningPredictor():
 
         scores = []
         models = []
-        all_test_indices = []
-        all_correct_test_indices = []
-        all_trial_labels = []
-        all_predict_prob = []
+        test_indices = []
+        trial_labels = []
+        predict_prob = []
 
         # Fit choice decoder for EVENT_LENGTH frames of the pre-stim duration.
         event_length = 10
         event_activity = []
         choices = []
-        trial_labels = []
+        event_trial_labels = []
         for trial in range(self.session.num_trials):
             if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
                 (np.isnan(self.trial_choices[trial])):
                 continue
             stim_on_frame = int(self.trial_indices[trial, 1])
             start_frame = int(stim_on_frame - event_length)
-            event_activity.append(data[trial, start_frame:stim_on_frame+1, :])
-            choices.append(self.trial_choices[trial])
-            trial_labels.append(trial)
-        choices = np.array(choices)
-        trial_labels = np.array(trial_labels)
+            trial_activity = data[trial, start_frame:stim_on_frame+1, :]
+            trial_choice = self.trial_choices[trial]
+            if np.isnan(trial_choice) or np.sum(np.isnan(trial_activity)) > 0:
+                continue
+            event_activity.append(trial_activity)
+            choices.append(trial_choice)
+            event_trial_labels.append(trial)
+        choices = np.array(choices) - 1
+        event_trial_labels = np.array(event_trial_labels)
         if self.to_reduce:
             event_activity = self._reduce_dim(event_activity)
         else:
             event_activity = np.array(event_activity)
-        for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+1, :]
-            score, model, test_indices, correct_test_indices, predict_prob = \
-                self._fit_window(window_activity, choices)
-            scores.append(score)
-            models.append(model)
-            all_test_indices.append(test_indices)
-            all_correct_test_indices.append(correct_test_indices)
-            all_trial_labels.append(trial_labels)
-            all_predict_prob.append(predict_prob)
+        score, model, event_test_indices, event_predict_prob = \
+                self._fit_window(event_activity, choices, event_trial_labels)
+        scores.extend(score)
+        models.extend(model)
+        test_indices.append(event_test_indices)
+        trial_labels.append(event_trial_labels)
+        predict_prob.extend(event_predict_prob)
 
         # Fit choice decoder for EVENT_LENGTH frames of the stim duration.
         event_length = 20
         event_activity = []
         choices = []
-        trial_labels = []
+        event_trial_labels = []
         for trial in range(self.session.num_trials):
             if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
                 (np.isnan(self.trial_choices[trial])):
                 continue
             stim_on_frame = int(self.trial_indices[trial, 1])
             end_frame = int(stim_on_frame + event_length)
-            event_activity.append(data[trial, stim_on_frame:end_frame+1, :])
-            choices.append(self.trial_choices[trial])
-            trial_labels.append(trial)
-        choices = np.array(choices)
-        trial_labels = np.array(trial_labels)
+            trial_activity = data[trial, stim_on_frame:end_frame+1, :]
+            trial_choice = self.trial_choices[trial]
+            if np.isnan(trial_choice) or np.sum(np.isnan(trial_activity)) > 0:
+                continue
+            event_activity.append(trial_activity)
+            choices.append(trial_choice)
+            event_trial_labels.append(trial)
+        choices = np.array(choices) - 1
+        event_trial_labels = np.array(event_trial_labels)
         if self.to_reduce:
             event_activity = self._reduce_dim(event_activity)
         else:
             event_activity = np.array(event_activity)
-        for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+1, :]
-            score, model, test_indices, correct_test_indices, predict_prob = \
-                self._fit_window(window_activity, choices)
-            scores.append(score)
-            models.append(model)
-            all_test_indices.append(test_indices)
-            all_correct_test_indices.append(correct_test_indices)
-            all_trial_labels.append(trial_labels)
-            all_predict_prob.append(predict_prob)
+        score, model, event_test_indices, event_predict_prob = \
+                self._fit_window(event_activity, choices, event_trial_labels)
+        scores.extend(score)
+        models.extend(model)
+        test_indices.append(event_test_indices)
+        trial_labels.append(event_trial_labels)
+        predict_prob.extend(event_predict_prob)
 
         # Fit choice decoder for EVENT_LENGTH frames post-stim.
         event_length = 10
         event_activity = []
         choices = []
-        trial_labels = []
+        event_trial_labels = []
         for trial in range(self.session.num_trials):
             if (np.sum(np.isnan(self.trial_indices[trial,:])) > 0) or\
                 (np.isnan(self.trial_choices[trial])):
                 continue
             stim_off_frame = int(self.trial_indices[trial, 2])
             end_frame = int(stim_off_frame + event_length)
-            event_activity.append(data[trial, stim_off_frame:end_frame+1, :])
-            choices.append(self.trial_choices[trial])
-            trial_labels.append(trial)
-        choices = np.array(choices)
-        trial_labels = np.array(trial_labels)
+            trial_activity = data[trial, stim_off_frame:end_frame+1, :]
+            trial_choice = self.trial_choices[trial]
+            if np.isnan(trial_choice) or np.sum(np.isnan(trial_activity)) > 0:
+                continue
+            event_activity.append(trial_activity)
+            choices.append(trial_choice)
+            event_trial_labels.append(trial)
+        choices = np.array(choices) - 1
+        event_trial_labels = np.array(event_trial_labels)
         if self.to_reduce:
             event_activity = self._reduce_dim(event_activity)
         else:
             event_activity = np.array(event_activity)
-        for frame in range(event_length):
-            window_activity = event_activity[:, frame:frame+1, :]
-            score, model, test_indices, correct_test_indices, predict_prob = \
-                self._fit_window(window_activity, choices)
-            scores.append(score)
-            models.append(model)
-            all_test_indices.append(test_indices)
-            all_correct_test_indices.append(correct_test_indices)
-            all_trial_labels.append(trial_labels)
-            all_predict_prob.append(predict_prob)
+        score, model, event_test_indices, event_predict_prob = \
+                self._fit_window(event_activity, choices, event_trial_labels)
+        scores.extend(score)
+        models.extend(model)
+        test_indices.append(event_test_indices)
+        trial_labels.append(event_trial_labels)
+        predict_prob.extend(event_predict_prob)
 
         results = {
             "scores": scores, "models": models,
-            "test_indices": all_test_indices,
-            "correct_test_indices": all_correct_test_indices,
-            "trial_labels": all_trial_labels,
-            "predic_prob": all_predict_prob
+            "test_indices": test_indices,
+            "trial_labels": trial_labels,
+            "predic_prob": predict_prob
             }
         return results
 
@@ -299,38 +300,51 @@ class LRChoice(LearningPredictor):
         super(LRChoice, self).__init__(session, reduce_dim, mode, shuffle)
         self.penalty = penalty
 
-    def _fit_window(self, window_data, choices):
+    def _fit_window(self, X, y, indices):
         """
         Fits a regularized logistic regression model, predicting
         left/right licking choice.
+        Only fits a model if the number of trials is at least twice the number
+        of covariates.
         
         Args
             start_idx: index in delay period to start extracting a window
                 of activity.
             window_length: size of the window of activity to extract
         """
-        
-        X = []
-        y = []
-        # Extracting training and test data
-        assert(len(window_data) == choices.size)
-        for trial, choice in enumerate(choices):
-            activity = window_data[trial].flatten()
-            if np.isnan(choice) or np.sum(np.isnan(activity)) > 0:
-                continue
-            X.append(activity.flatten())
-            y.append(int(choice-1))
-        X = np.array(X)
-        y = np.array(y)
-        if y.size < 70:
-            return np.nan, None, None, None, None
-        indices = np.arange(y.size)
+
+        assert(X.shape[0] == y.size)
+        assert(indices.size == y.size)
+        test_size = 0.40
+        train_size = 1. - test_size
+        event_length = X.shape[1]
+        if X.shape[2] > (y.size*train_size)*2:
+            return [np.nan]*event_length, [None]*event_length,\
+                None, [np.nan]*event_length
         X_train, X_test, y_train, y_test, train_indices, test_indices = \
             train_test_split(
-                X, y, indices, test_size = 0.30, stratify=y
+                X, y, indices, test_size=test_size, stratify=y
                 )
-        
-        # Training the model with cross validation
+        scores = []
+        models = []
+        predict_probs = []
+        for frame in range(event_length):
+            window_X_train = X_train[:, frame, :].squeeze()
+            window_X_test = X_test[:, frame, :].squeeze()
+            test_score, log_reg = self._train_model(
+                window_X_train, window_X_test, y_train, y_test
+                )
+            predict_prob = log_reg.predict_proba(X[:,frame,:].squeeze())
+            scores.append(test_score)
+            models.append(log_reg)
+            predict_probs.append(predict_prob)
+        return scores, models, test_indices, predict_probs
+
+    def _train_model(self, X_train, X_test, y_train, y_test):
+        """
+        Trains LR model over the input data
+        """
+            
         if self.penalty == "l1":
             solver="liblinear"
         else:
@@ -342,99 +356,4 @@ class LRChoice(LearningPredictor):
         log_reg.fit(X_train, y_train)
         correct_test_indices = (y_test == log_reg.predict(X_test))
         test_score = np.sum(correct_test_indices)/np.size(y_test)
-        predict_prob = log_reg.predict_proba(X)
-        return test_score, log_reg, test_indices, correct_test_indices, predict_prob
-
-class SVCChoice(LearningPredictor):
-    """
-    SVM classifier with polynomial kernel. Looks one frame into the future.
-    """
-
-    results = []
-
-    def __init__(self, session, shuffle=False):
-        super(SVCChoice, self).__init__(session, shuffle)
-
-    def get_trial_index_map(self):
-        """
-        Returns a map of how SVC data indices correspond to session trial
-        indices. Specifically, for N SVC data trials, this function returns a
-        size (N,) numpy array. The value at the ith index indicates the session
-        trial index corresponding to the ith SVC data index.
-        """
-
-        num_intervals = 4
-        all_index_maps = []
-        for trial_index in range(self.trial_indices.shape[1] - 1):
-            # Collect usable trials for this particular trial event.
-            # Trial will be thrown out if there are nans in the activity or if
-            # the trial event starts at a frame too close to the end of the
-            # trial.
-            event_index_map = [[] for _ in range(num_intervals)]
-            for trial in range(self.session.num_trials):
-                start_frame = self.trial_indices[trial,trial_index]
-                end_frame = self.trial_indices[trial,trial_index + 1]
-                if np.sum(np.isnan(self.trial_indices[trial,:])) > 0:
-                    continue
-                elif start_frame > (self.session.num_bins - 2):
-                    continue
-                elif np.isnan(self.trial_choices[trial]):
-                    continue
-                frames = np.linspace(
-                     start_frame, end_frame - 1, num_intervals
-                     ).astype(int)
-                for interval, frame in enumerate(frames):
-                    activity = self.data[trial, frame:frame+2, :]
-                    if np.sum(np.isnan(activity)) > 0:
-                        continue
-                    event_index_map[interval].append(trial)
-            event_index_map = [np.array(m) for m in event_index_map]
-            all_index_maps.extend(event_index_map)
-        return all_index_maps
-
-    def _fit_window(self, window_data, choices):
-        """
-        Fits SVC over the data given in window_data 
-        """
-
-        X = []
-        y = []
-        # Extracting training and test data
-        assert(len(window_data) == choices.size)
-        for trial, choice in enumerate(choices):
-            activity = window_data[trial].flatten()
-            if np.isnan(choice) or np.sum(np.isnan(activity)) > 0:
-                continue
-            X.append(activity.flatten())
-            y.append(int(choice-1))
-        X = np.array(X)
-        y = np.array(y)
-        if y.size < 70:
-            return np.nan, None, None, None
-        indices = np.arange(y.size)
-        X_train, X_test, y_train, y_test, train_indices, test_indices = \
-            train_test_split(
-                X, y, indices, test_size = 0.20, stratify=y
-                )
-        
-        best_score = 0
-        best_model = None
-        best_correct_test_indices = []
-        
-        for C in [2**i for i in range(-3,3)]:
-            for gamma in [2**i for i in range(-4,4)]:
-                for degree in [1,2]:
-                    svclassifier = SVC(
-                        kernel='poly', degree=degree, C=C, gamma=gamma
-                        )
-                    svclassifier.fit(X_train, y_train)
-                    score = svclassifier.score(X_test, y_test)
-                    correct_test_indices = \
-                        svclassifier.predict(X_test) == y_test
-                    if best_score < score:
-                        best_score = score
-                        best_model = svclassifier
-                        best_correct_test_indices = correct_test_indices
-
-        return best_score, best_model, test_indices, best_correct_test_indices
-
+        return test_score, log_reg

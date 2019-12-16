@@ -25,7 +25,7 @@ def main(mode=None, reduce_dim=None):
     else:
         pickle.dump(results,
             open("pickles/choicedecodingregreduce" +\
-                    str(reduce_dim) + "_learning_mSM63.p", "wb")
+                    str(reduce_dim) + "_0.4learning_mSM63.p", "wb")
             )
 
 def _run_decoding(mouse, day, mode, reduce_dim):
